@@ -1,0 +1,12 @@
+node_modules/
+.venv/
+__pycache__/
+.next/
+out/
+build/
+.env
+.env.local
+*.db
+credenciales.txt
+index.lock
+node_modules
