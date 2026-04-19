@@ -4,13 +4,17 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { TaskCard } from '@/components/task-card';
 import { Button } from '@/components/ui/button';
-import { LayoutGrid, List, Sparkles, Filter } from 'lucide-react';
+import { LayoutGrid, List, Sparkles, CalendarDays } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { AnalyticsHeader } from '@/components/analytics-header';
+import { CalendarView } from '@/components/calendar-view';
+import { PomodoroWidget } from '@/components/pomodoro-widget';
 
 export default function Dashboard() {
   const [tasks, setTasks] = useState<any[]>([]);
-  const [view, setView] = useState<'kanban' | 'list'>('kanban');
+  const [view, setView] = useState<'kanban' | 'list' | 'calendar'>('kanban');
   const [loading, setLoading] = useState(true);
+  const [focusTask, setFocusTask] = useState<any>(null);
 
   useEffect(() => {
     fetchTasks();
@@ -87,14 +91,27 @@ export default function Dashboard() {
               <List className="w-4 h-4 mr-2" />
               Lista
             </Button>
+            <Button
+              variant={view === 'calendar' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setView('calendar')}
+              className="h-8 px-3"
+            >
+              <CalendarDays className="w-4 h-4 mr-2" />
+              Calendario
+            </Button>
           </div>
         </header>
+
+        <AnalyticsHeader tasks={tasks} />
 
         {/* Dashboard Content */}
         {loading ? (
           <div className="flex items-center justify-center h-64 opacity-50">
             <p className="animate-pulse font-medium">Cargando tareas...</p>
           </div>
+        ) : view === 'calendar' ? (
+          <CalendarView tasks={tasks} onFocusTask={setFocusTask} />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
             <AnimatePresence mode="popLayout">
@@ -111,7 +128,7 @@ export default function Dashboard() {
                   
                   <div className="space-y-4">
                     {tasks.filter((t) => t.estado === col).map((task) => (
-                      <TaskCard key={task.id} task={task} />
+                      <TaskCard key={task.id} task={task} onFocus={() => setFocusTask(task)} />
                     ))}
                     {tasks.filter((t) => t.estado === col).length === 0 && (
                       <div className="border border-dashed rounded-xl h-24 flex items-center justify-center text-muted-foreground/30 text-xs">
@@ -125,6 +142,8 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      <PomodoroWidget task={focusTask} onClose={() => setFocusTask(null)} />
     </main>
   );
 }

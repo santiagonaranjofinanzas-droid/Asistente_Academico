@@ -2,7 +2,8 @@
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, CheckCircle2, Clock, MoreVertical } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Calendar, CheckCircle2, Clock, MoreVertical, Timer } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface Task {
@@ -21,7 +22,7 @@ const statusColors = {
   entregada: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
 };
 
-export function TaskCard({ task }: { task: Task }) {
+export function TaskCard({ task, onFocus }: { task: Task, onFocus?: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -58,6 +59,22 @@ export function TaskCard({ task }: { task: Task }) {
               <span>Restante: 2d</span>
             </div>
           </div>
+          {onFocus && task.estado !== 'lista' && (
+            <div className="mt-4 pt-3 border-t border-border/50">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="w-full h-7 text-xs text-muted-foreground hover:text-primary hover:bg-primary/10"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFocus();
+                }}
+              >
+                <Timer className="w-3.5 h-3.5 mr-2" />
+                Iniciar Pomodoro
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </motion.div>
