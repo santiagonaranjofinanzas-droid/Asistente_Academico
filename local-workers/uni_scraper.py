@@ -4,6 +4,7 @@ from playwright.async_api import async_playwright
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import datetime
+import dateparser
 from telegram_notifier import send_notification
 
 load_dotenv()
@@ -58,14 +59,18 @@ async def run_scraper():
                 fecha_elem = await event.query_selector(".date")
                 fecha_str = await fecha_elem.inner_text() if fecha_elem else ""
                 
-                # Logic to parse date could be added here
+                # Parse date logic
+                parsed_date = dateparser.parse(fecha_str, languages=['es'])
+                fecha_entrega = parsed_date.isoformat() if parsed_date else None
+
                 # Upsert to Supabase
                 task_data = {
                     "titulo": title,
                     "materia": materia,
                     "descripcion": f"Fecha detectada: {fecha_str}",
                     "estado": "por_empezar",
-                    "archivada": False
+                    "archivada": False,
+                    "fecha_entrega": fecha_entrega
                 }
                 
                 if supabase:
