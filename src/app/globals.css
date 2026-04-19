@@ -37,6 +37,8 @@
   --color-primary: var(--primary);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
 }
 
 :root {
@@ -112,7 +114,7 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
   }
   body {
     @apply bg-background text-foreground antialiased selection:bg-primary/20;
