@@ -1,98 +1,163 @@
 import { TaskCard } from './task-card';
-import { format, isSameDay, parseISO } from 'date-fns';
+import { 
+  format, isSameDay, isSameMonth, parseISO, 
+  startOfMonth, endOfMonth, startOfWeek, endOfWeek, 
+  eachDayOfInterval, addMonths, subMonths, isToday
+} from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Clock } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useState } from 'react';
+import { Button } from './ui/button';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from './ui/sheet';
 
 export function CalendarView({ tasks, onFocusTask }: { tasks: any[], onFocusTask?: (task: any) => void }) {
-  // Group tasks by date
-  const groupedTasks: Record<string, any[]> = {};
-  const noDateTasks: any[] = [];
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
+  // Parse tasks and put them into a dictionary by 'yyyy-MM-dd'
+  const groupedTasks: Record<string, any[]> = {};
   tasks.forEach((task) => {
-    if (!task.fecha_entrega) {
-      noDateTasks.push(task);
-      return;
-    }
+    if (!task.fecha_entrega) return;
     const dateStr = format(parseISO(task.fecha_entrega), 'yyyy-MM-dd');
     if (!groupedTasks[dateStr]) groupedTasks[dateStr] = [];
     groupedTasks[dateStr].push(task);
   });
 
-  // Sort dates
-  const sortedDates = Object.keys(groupedTasks).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+  const monthStart = startOfMonth(currentDate);
+  const monthEnd = endOfMonth(monthStart);
+  const startDate = startOfWeek(monthStart, { weekStartsOn: 1 }); // Start on Monday
+  const endDate = endOfWeek(monthEnd, { weekStartsOn: 1 });
+
+  const calendarDays = eachDayOfInterval({ start: startDate, end: endDate });
+  const weekDays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+
+  const nextMonth = () => setCurrentDate(addMonths(currentDate, 1));
+  const prevMonth = () => setCurrentDate(subMonths(currentDate, 1));
+  
+  const selectedDayTasks = selectedDay ? groupedTasks[format(selectedDay, 'yyyy-MM-dd')] || [] : [];
+
+  const getStatusColor = (status: string) => {
+    if (status === 'por_empezar') return 'bg-slate-500/10 text-slate-500 border-slate-500/30';
+    if (status === 'en_proceso') return 'bg-blue-500/10 text-blue-500 border-blue-500/30';
+    if (status === 'lista') return 'bg-green-500/10 text-green-500 border-green-500/30';
+    return 'bg-purple-500/10 text-purple-500 border-purple-500/30';
+  };
 
   return (
-    <div className="space-y-12 pb-12">
-      {sortedDates.map((dateStr, idx) => {
-        const dateTasks = groupedTasks[dateStr];
-        const displayDate = parseISO(dateStr);
-        const isToday = isSameDay(displayDate, new Date());
-
-        return (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.1 }}
-            key={dateStr} 
-            className="relative"
-          >
-            {/* Timeline Line */}
-            <div className="absolute left-6 top-8 bottom-[-48px] w-0.5 bg-border -z-10" />
-
-            <div className="flex gap-6 items-start">
-              <div className={`mt-1 flex-shrink-0 w-12 h-12 rounded-full border-4 border-background flex items-center justify-center ${isToday ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'bg-muted text-muted-foreground'}`}>
-                {isToday ? <Clock className="w-5 h-5" /> : <CalendarIcon className="w-5 h-5" />}
-              </div>
-              
-              <div className="flex-1 space-y-4">
-                <h3 className="text-xl font-bold flex items-center gap-2">
-                  <span className="capitalize">{format(displayDate, 'EEEE d', { locale: es })}</span>
-                  <span className="text-muted-foreground font-normal text-sm">
-                    de {format(displayDate, 'MMMM, yyyy', { locale: es })}
-                  </span>
-                  {isToday && <span className="text-[10px] bg-primary text-primary-foreground px-2 py-0.5 rounded-full uppercase tracking-wider font-bold ml-2">Hoy</span>}
-                </h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {dateTasks.map(task => (
-                    <TaskCard key={task.id} task={task} onFocus={onFocusTask ? () => onFocusTask(task) : undefined} />
-                  ))}
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        );
-      })}
-
-      {noDateTasks.length > 0 && (
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="relative pt-8"
-        >
-          <div className="flex gap-6 items-start opacity-70">
-            <div className="mt-1 flex-shrink-0 w-12 h-12 rounded-full border-4 border-background flex items-center justify-center bg-muted text-muted-foreground">
-              <Clock className="w-5 h-5" />
-            </div>
-            <div className="flex-1 space-y-4">
-              <h3 className="text-lg font-bold text-muted-foreground">Sin Fecha de Entrega</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {noDateTasks.map(task => (
-                  <TaskCard key={task.id} task={task} onFocus={onFocusTask ? () => onFocusTask(task) : undefined} />
-                ))}
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {tasks.length === 0 && (
-        <div className="py-24 text-center space-y-4 text-muted-foreground">
-          <CalendarIcon className="w-12 h-12 mx-auto opacity-20" />
-          <p>No tienes tareas pendientes en tu calendario.</p>
+    <div className="space-y-6">
+      {/* Header Controllers */}
+      <div className="flex items-center justify-between bg-card/50 p-4 rounded-xl border border-border/50">
+        <h2 className="text-xl font-bold flex items-center gap-2 capitalize">
+          <CalendarIcon className="w-5 h-5 text-primary" />
+          {format(currentDate, 'MMMM yyyy', { locale: es })}
+        </h2>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" onClick={prevMonth} className="h-8 w-8">
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())} className="h-8">
+            Hoy
+          </Button>
+          <Button variant="outline" size="icon" onClick={nextMonth} className="h-8 w-8">
+            <ChevronRight className="w-4 h-4" />
+          </Button>
         </div>
-      )}
+      </div>
+
+      {/* Grid Header (Days of week) */}
+      <div className="grid grid-cols-7 gap-4">
+        {weekDays.map(day => (
+          <div key={day} className="text-center text-xs font-bold uppercase tracking-wider text-muted-foreground/70 pb-2 border-b border-border/50">
+            {day}
+          </div>
+        ))}
+
+        {/* Grid Cells */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentDate.toString()}
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 10 }}
+            transition={{ duration: 0.2 }}
+            className="contents" // "contents" makes the children participate in the parent grid directly
+          >
+            {calendarDays.map((day) => {
+              const dayStr = format(day, 'yyyy-MM-dd');
+              const dayTasks = groupedTasks[dayStr] || [];
+              const isCurrentMonth = isSameMonth(day, monthStart);
+              const isCurrentDay = isToday(day);
+
+              return (
+                <div
+                  key={day.toString()}
+                  onClick={() => { if (dayTasks.length > 0) setSelectedDay(day); }}
+                  className={`min-h-[140px] p-2 rounded-xl border transition-all duration-300 relative flex flex-col gap-1
+                    ${isCurrentMonth ? 'bg-card/40 border-border/50' : 'bg-transparent border-transparent opacity-40'}
+                    ${dayTasks.length > 0 ? 'cursor-pointer hover:border-primary/50 hover:bg-card/80 hover:shadow-md' : ''}
+                    ${isCurrentDay ? 'ring-2 ring-primary ring-opacity-50' : ''}
+                  `}
+                >
+                  <div className="flex justify-between items-start mb-1">
+                    <span className={`text-sm font-semibold w-7 h-7 flex items-center justify-center rounded-full ${isCurrentDay ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>
+                      {format(day, 'd')}
+                    </span>
+                    {dayTasks.length > 0 && (
+                      <span className="text-[10px] font-bold bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                        {dayTasks.length}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Task Pills */}
+                  <div className="flex flex-col gap-1.5 flex-1 overflow-hidden">
+                    {dayTasks.slice(0, 3).map((t, idx) => (
+                      <div 
+                        key={idx} 
+                        className={`text-[10px] truncate px-1.5 py-1 rounded border font-medium ${getStatusColor(t.estado)}`}
+                      >
+                        {t.titulo}
+                      </div>
+                    ))}
+                    {dayTasks.length > 3 && (
+                      <div className="text-[10px] text-muted-foreground text-center font-medium opacity-70">
+                        +{dayTasks.length - 3} más
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {/* Day Details Modal / Sheet */}
+      <Sheet open={selectedDay !== null} onOpenChange={(open) => !open && setSelectedDay(null)}>
+        <SheetContent side="right" className="w-[400px] sm:w-[540px] overflow-y-auto">
+          <SheetHeader className="mb-6">
+            <SheetTitle className="capitalize text-2xl flex items-center gap-2">
+              {selectedDay ? format(selectedDay, 'EEEE d, MMMM', { locale: es }) : ''}
+            </SheetTitle>
+            <SheetDescription>
+              {selectedDayTasks.length} {selectedDayTasks.length === 1 ? 'tarea programada' : 'tareas programadas'} para este día.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="space-y-4 pb-12">
+            {selectedDayTasks.map(task => (
+               <TaskCard 
+                 key={task.id} 
+                 task={task} 
+                 onFocus={onFocusTask ? () => {
+                   onFocusTask(task);
+                   setSelectedDay(null); // Close sheet when starting focus
+                 } : undefined} 
+               />
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
