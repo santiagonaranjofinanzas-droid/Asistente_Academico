@@ -21,7 +21,7 @@ export default function Dashboard() {
       .on(
         'postgres_changes' as any,
         { event: '*', table: 'tareas' },
-        (payload) => {
+        (payload: any) => {
           console.log('Change received!', payload);
           if (payload.eventType === 'INSERT') {
             setTasks((prev) => [payload.new, ...prev]);
