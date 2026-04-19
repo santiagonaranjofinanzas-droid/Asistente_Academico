@@ -19,7 +19,7 @@ export default function Dashboard() {
     const channel = supabase
       .channel('tasks_channel')
       .on(
-        'postgres_changes',
+        'postgres_changes' as any,
         { event: '*', table: 'tareas' },
         (payload) => {
           console.log('Change received!', payload);
