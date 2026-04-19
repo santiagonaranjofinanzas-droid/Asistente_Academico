@@ -56,6 +56,9 @@ async def run_scraper():
                 materia_elem = await event.query_selector(".course")
                 materia = await materia_elem.inner_text() if materia_elem else "General"
                 
+                # Capture unique Moodle ID
+                moodle_id = await event.get_attribute("data-event-id")
+                
                 fecha_elem = await event.query_selector(".date")
                 fecha_str = await fecha_elem.inner_text() if fecha_elem else ""
                 
@@ -65,18 +68,19 @@ async def run_scraper():
 
                 # Upsert to Supabase
                 task_data = {
+                    "id_moodle": moodle_id,
                     "titulo": title,
                     "materia": materia,
-                    "descripcion": f"Fecha detectada: {fecha_str}",
+                    "descripcion": f"ID ESPE: {moodle_id} | Fecha: {fecha_str}",
                     "estado": "por_empezar",
                     "archivada": False,
                     "fecha_entrega": fecha_entrega
                 }
                 
                 if supabase:
-                    # Upsert based on title and materia to avoid duplicates
-                    res = supabase.table("tareas").upsert(task_data, on_conflict="titulo").execute()
-                    print(f"Task upserted: {title}")
+                    # Upsert based on moodle_id to handle title changes gracefully
+                    res = supabase.table("tareas").upsert(task_data, on_conflict="id_moodle").execute()
+                    print(f"Task synced: {title} (ID: {moodle_id})")
                 
                 tasks_found.append(task_data)
 
