@@ -63,7 +63,13 @@ async def run_scraper():
                 # Capture unique Moodle ID
                 moodle_id = await event.get_attribute("data-event-id")
                 
-                fecha_elem = await event.query_selector(".date")
+                # Targeted selector for date (Moodle structure)
+                # The date is usually in the description row accompanied by a clock icon
+                fecha_elem = await event.query_selector(".description .row .col-11")
+                if not fecha_elem:
+                    # Fallback to any col-11 in the description if the icon isn't found
+                    fecha_elem = await event.query_selector(".description .col-11")
+                
                 fecha_str = await fecha_elem.inner_text() if fecha_elem else ""
                 
                 # Robust Parse date logic
@@ -83,13 +89,8 @@ async def run_scraper():
                 if "202" not in clean_fecha_str:
                     clean_fecha_str += f" {now.year}"
                 
-                parsed_date = dateparser.parse(
-                    clean_fecha_str, 
-                    languages=['es'],
-                    settings={'PREFER_DATES_FROM': 'future'}
-                )
                 fecha_entrega = parsed_date.isoformat() if parsed_date else None
-
+                
                 # Clean description
                 clean_desc = f"Fecha original: {fecha_str}"
                 if not fecha_entrega:
