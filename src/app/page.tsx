@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { LayoutGrid, List, Sparkles, CalendarDays } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AnalyticsHeader } from '@/components/analytics-header';
-import { AnalyticsHeader } from '@/components/analytics-header';
 import { CalendarView } from '@/components/calendar-view';
 import { PomodoroWidget } from '@/components/pomodoro-widget';
 import { ThemeToggle } from '@/components/theme-toggle';
