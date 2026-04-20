@@ -27,17 +27,19 @@ const statusColors = {
 export function TaskCard({ task, onFocus }: { task: Task, onFocus?: () => void }) {
   return (
     <motion.div
-      draggable={true}
-      onDragStart={(e: React.DragEvent) => {
-        e.dataTransfer.setData('taskId', task.id);
-      }}
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
       whileHover={{ y: -2 }}
-      className="group cursor-grab active:cursor-grabbing"
     >
-      <Card className="glass-card overflow-hidden">
+      <div
+        draggable={true}
+        onDragStart={(e: React.DragEvent) => {
+          e.dataTransfer.setData('taskId', task.id);
+        }}
+        className="group cursor-grab active:cursor-grabbing"
+      >
+        <Card className="glass-card overflow-hidden">
         <CardHeader className="p-4 pb-2">
           <div className="flex justify-between items-start">
             <Badge variant="outline" className="text-[10px] uppercase tracking-wider font-semibold opacity-70">
@@ -95,6 +97,7 @@ export function TaskCard({ task, onFocus }: { task: Task, onFocus?: () => void }
           )}
         </CardContent>
       </Card>
+      </div>
     </motion.div>
   );
 }
