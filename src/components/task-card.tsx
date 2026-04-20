@@ -58,7 +58,7 @@ export function TaskCard({ task }: { task: Task }) {
       setSummary(data.response);
     } catch (error) {
       console.error('Error contacting Ollama:', error);
-      setSummary('No se pudo conectar con Llama 3.2 (localhost:11434). Asegúrate de que Ollama esté corriendo.');
+      setSummary('No se pudo conectar con el Puente de IA (localhost:11435). Asegúrate de haber ejecutado "iniciar_bots_invisible.vbs" en tu PC.');
     } finally {
       setIsSummarizing(false);
     }
