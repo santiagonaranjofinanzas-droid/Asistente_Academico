@@ -2,7 +2,7 @@ import { TaskCard } from './task-card';
 import { 
   format, isSameDay, isSameMonth, parseISO, 
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, 
-  eachDayOfInterval, addMonths, subMonths, isToday
+  eachDayOfInterval, addMonths, subMonths, isToday, isPast
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
