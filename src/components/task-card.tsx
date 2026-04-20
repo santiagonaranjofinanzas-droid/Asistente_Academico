@@ -8,6 +8,11 @@ import { motion } from 'framer-motion';
 import { formatDistanceToNow, isPast, isToday, isTomorrow, differenceInDays, format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
+interface Attachment {
+  nombre: string;
+  url: string;
+}
+
 interface Task {
   id: string;
   materia: string;
@@ -16,7 +21,8 @@ interface Task {
   fecha_entrega: string;
   estado: string;
   texto_extraido?: string;
-  archivos_adjuntos?: { nombre: string, url: string }[];
+  archivos_adjuntos?: Attachment[] | string;
+  resumen_ia?: string;
 }
 
 const statusColors = {
@@ -26,54 +32,29 @@ const statusColors = {
   entregada: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
 };
 
-import { Sparkles as SparklesIcon, Loader2, Download as DownloadIcon } from 'lucide-react';
-import { useState } from 'react';
+import { Sparkles as SparklesIcon, Loader2, Download as DownloadIcon, FileText, Brain } from 'lucide-react';
+import { useState, useMemo } from 'react';
 
 export function TaskCard({ task }: { task: Task }) {
-  const [isSummarizing, setIsSummarizing] = useState(false);
-  const [summary, setSummary] = useState<string | null>(null);
+  const [showSummary, setShowSummary] = useState(false);
+  const [showExtracted, setShowExtracted] = useState(false);
 
-  const handleSummarize = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    console.log('Botón Deep Reader presionado para:', task.titulo);
-    
-    if (summary) {
-      setSummary(null);
-      return;
+  // Parse archivos_adjuntos which may be a JSON string or already an array
+  const attachments: Attachment[] = useMemo(() => {
+    if (!task.archivos_adjuntos) return [];
+    if (typeof task.archivos_adjuntos === 'string') {
+      try {
+        const parsed = JSON.parse(task.archivos_adjuntos);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
     }
+    return Array.isArray(task.archivos_adjuntos) ? task.archivos_adjuntos : [];
+  }, [task.archivos_adjuntos]);
 
-    setIsSummarizing(true);
-    try {
-      const extraContext = task.texto_extraido ? `\nContexto Adjunto Extraído del PDF/Word: ${task.texto_extraido}` : "";
-      console.log('Enviando petición al puente local (localhost:11435)...');
-      
-      const response = await fetch('http://localhost:11435/summarize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'llama3.2',
-          prompt: `Eres un asistente académico experto. Resume brevemente de qué trata esta tarea y da 3 pasos sugeridos para realizarla rápidamente. 
-          Tarea: ${task.titulo}
-          Materia: ${task.materia}
-          Descripción General: ${task.descripcion}. 
-          ${extraContext}
-          Responde en español, sé directo, usa viñetas concisas y no más de 100 palabras en total. No incluyas información innecesaria.`,
-          stream: false
-        })
-      });
-      
-      if (!response.ok) throw new Error(`Error en el puente: ${response.statusText}`);
-      
-      const data = await response.json();
-      console.log('Respuesta recibida de la IA:', data.response ? 'Éxito' : 'Vacía');
-      setSummary(data.response);
-    } catch (error) {
-      console.error('Error detallado al conectar con Ollama Bridge:', error);
-      setSummary('No se pudo conectar con el Puente de IA (localhost:11435). Revisa que la consola de Windows no tenga errores y recarga la página.');
-    } finally {
-      setIsSummarizing(false);
-    }
-  };
+  const hasSummary = !!task.resumen_ia;
+  const hasExtractedText = !!task.texto_extraido && task.texto_extraido.trim().length > 0;
 
   return (
     <motion.div
@@ -130,46 +111,83 @@ export function TaskCard({ task }: { task: Task }) {
             )}
           </div>
           
-          {task.archivos_adjuntos && task.archivos_adjuntos.length > 0 && (
+          {/* Attachments Section */}
+          {attachments.length > 0 && (
             <div className="flex flex-col gap-1.5 mb-3">
-              {task.archivos_adjuntos.map((archivo, i) => (
+              <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-semibold">
+                📎 Archivos ({attachments.length})
+              </span>
+              {attachments.map((archivo, i) => (
                 <a 
                   key={i} 
                   href={archivo.url} 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-2 py-1 rounded bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-[10px] text-muted-foreground w-fit max-w-full overflow-hidden"
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-primary/5 border border-primary/10 hover:bg-primary/10 hover:border-primary/20 transition-all text-[11px] text-foreground/80 w-fit max-w-full overflow-hidden group/link"
                 >
-                  <DownloadIcon className="w-3 h-3 flex-shrink-0" />
-                  <span className="truncate">{archivo.nombre}</span>
+                  <DownloadIcon className="w-3 h-3 flex-shrink-0 text-primary group-hover/link:scale-110 transition-transform" />
+                  <span className="truncate font-medium">{archivo.nombre}</span>
                 </a>
               ))}
             </div>
           )}
           
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={handleSummarize}
-            disabled={isSummarizing}
-            className="w-full h-7 text-xs text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-          >
-            {isSummarizing ? (
-              <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
-            ) : (
-              <SparklesIcon className="w-3.5 h-3.5 mr-2 text-primary" />
-            )}
-            {summary ? 'Cerrar Resumen' : 'Deep Reader (IA)'}
-          </Button>
+          {/* AI Summary Button - reads pre-computed summary from DB */}
+          {hasSummary && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={(e) => { e.stopPropagation(); setShowSummary(!showSummary); }}
+              className="w-full h-7 text-xs text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+            >
+              <Brain className="w-3.5 h-3.5 mr-2 text-primary" />
+              {showSummary ? 'Cerrar Resumen IA' : 'Ver Resumen IA'}
+            </Button>
+          )}
+          
+          {/* Extracted Text Toggle */}
+          {hasExtractedText && !hasSummary && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={(e) => { e.stopPropagation(); setShowExtracted(!showExtracted); }}
+              className="w-full h-7 text-xs text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+            >
+              <FileText className="w-3.5 h-3.5 mr-2 text-primary" />
+              {showExtracted ? 'Cerrar Texto' : 'Ver Texto Extraído'}
+            </Button>
+          )}
 
-          {summary && (
+          {/* No AI indicator when summary is pending */}
+          {!hasSummary && !hasExtractedText && task.estado !== 'entregada' && (
+            <div className="w-full h-7 flex items-center justify-center text-[10px] text-muted-foreground/40">
+              <SparklesIcon className="w-3 h-3 mr-1.5 opacity-40" />
+              Resumen IA pendiente
+            </div>
+          )}
+
+          {/* AI Summary Panel */}
+          {showSummary && task.resumen_ia && (
             <motion.div 
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs text-muted-foreground whitespace-pre-wrap select-text cursor-text"
               onPointerDown={(e) => e.stopPropagation()}
             >
-               {summary}
+               {task.resumen_ia}
+            </motion.div>
+          )}
+
+          {/* Extracted Text Panel */}
+          {showExtracted && task.texto_extraido && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              className="mt-3 p-3 rounded-lg bg-muted/30 border text-xs text-muted-foreground whitespace-pre-wrap select-text cursor-text max-h-48 overflow-y-auto"
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+               {task.texto_extraido}
             </motion.div>
           )}
         </CardContent>
