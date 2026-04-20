@@ -28,10 +28,14 @@ export default function Dashboard() {
         { event: '*', table: 'tareas' },
         (payload: any) => {
           console.log('Change received!', payload);
-          if (payload.eventType === 'INSERT') {
+          if (payload.eventType === 'INSERT' && !payload.new.archivada) {
             setTasks((prev) => [payload.new, ...prev]);
           } else if (payload.eventType === 'UPDATE') {
-            setTasks((prev) => prev.map((t) => (t.id === payload.new.id ? payload.new : t)));
+            if (payload.new.archivada) {
+              setTasks((prev) => prev.filter((t) => t.id !== payload.new.id));
+            } else {
+              setTasks((prev) => prev.map((t) => (t.id === payload.new.id ? payload.new : t)));
+            }
           } else if (payload.eventType === 'DELETE') {
             setTasks((prev) => prev.filter((t) => t.id === payload.old.id));
           }
@@ -64,12 +68,18 @@ export default function Dashboard() {
     if (!taskId) return;
 
     // Optimistic UI update
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, estado: newEstado } : t));
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, estado: newEstado, archivada: newEstado === 'lista' } : t));
 
     // Supabase update
+    const updateData: any = { estado: newEstado };
+    if (newEstado === 'lista') {
+      updateData.archivada = true;
+      updateData.estado = 'entregada'; // Final state
+    }
+
     const { error } = await supabase
       .from('tareas')
-      .update({ estado: newEstado })
+      .update(updateData)
       .eq('id', taskId);
 
     if (error) {

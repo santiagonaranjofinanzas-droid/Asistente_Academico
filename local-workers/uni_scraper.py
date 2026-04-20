@@ -68,20 +68,32 @@ async def run_scraper():
                 
                 # Robust Parse date logic
                 # Clean moodle string anomalies
-                clean_fecha_str = fecha_str.replace('\t', ' ').replace('\n', ' ').strip()
-                clean_fecha_str = ' '.join(clean_fecha_str.split()) # Remove double spaces
+                clean_fecha_str = fecha_str.replace('\t', ' ').replace('\n', ' ').replace(',', '').strip()
+                
+                # Handle relative dates before passing to dateparser
+                now = datetime.datetime.now()
+                tomorrow = now + datetime.timedelta(days=1)
+                
+                if "Hoy" in clean_fecha_str:
+                    clean_fecha_str = clean_fecha_str.replace("Hoy", now.strftime("%d %B %Y"))
+                elif "Maana" in clean_fecha_str or "Mañana" in clean_fecha_str:
+                    clean_fecha_str = clean_fecha_str.replace("Maana", tomorrow.strftime("%d %B %Y")).replace("Mañana", tomorrow.strftime("%d %B %Y"))
+                
+                # Ensure year is present for absolute dates (e.g., "26 abril")
+                if "202" not in clean_fecha_str:
+                    clean_fecha_str += f" {now.year}"
                 
                 parsed_date = dateparser.parse(
                     clean_fecha_str, 
                     languages=['es'],
-                    settings={'RELATIVE_BASE': datetime.datetime.now(), 'PREFER_DATES_FROM': 'future'}
+                    settings={'PREFER_DATES_FROM': 'future'}
                 )
                 fecha_entrega = parsed_date.isoformat() if parsed_date else None
 
-                # Clean description (remove technical IDs if redundant)
-                clean_desc = f"Fecha original: {clean_fecha_str}"
+                # Clean description
+                clean_desc = f"Fecha original: {fecha_str}"
                 if not fecha_entrega:
-                    clean_desc += " (Moodle string parse failed)"
+                    clean_desc += " (Parse failed: " + clean_fecha_str + ")"
 
                 # Upsert to Supabase
                 task_data = {
