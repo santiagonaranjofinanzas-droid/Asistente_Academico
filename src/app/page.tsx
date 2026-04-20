@@ -6,13 +6,14 @@ import { TaskCard } from '@/components/task-card';
 import { Button } from '@/components/ui/button';
 import { AnalyticsHeader } from '@/components/analytics-header';
 import { CalendarView } from '@/components/calendar-view';
-import { Archive, LayoutGrid, List, Sparkles, CalendarDays } from 'lucide-react';
+import { ClassSchedule } from '@/components/class-schedule';
+import { Archive, LayoutGrid, List, Sparkles, CalendarDays, Clock } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Dashboard() {
   const [tasks, setTasks] = useState<any[]>([]);
-  const [view, setView] = useState<'kanban' | 'list' | 'calendar' | 'archived'>('kanban');
+  const [view, setView] = useState<'kanban' | 'list' | 'calendar' | 'schedule' | 'archived'>('kanban');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -148,6 +149,15 @@ export default function Dashboard() {
               Calendario
             </Button>
             <Button
+              variant={view === 'schedule' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setView('schedule')}
+              className="h-8 px-3 text-primary font-medium"
+            >
+              <Clock className="w-4 h-4 mr-2" />
+              Horario
+            </Button>
+            <Button
               variant={view === 'archived' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setView('archived')}
@@ -168,6 +178,8 @@ export default function Dashboard() {
           <div className="flex items-center justify-center h-64 opacity-50">
             <p className="animate-pulse font-medium">Cargando tareas...</p>
           </div>
+        ) : view === 'schedule' ? (
+          <ClassSchedule />
         ) : view === 'calendar' ? (
           <CalendarView tasks={tasks} />
         ) : view === 'list' ? (
