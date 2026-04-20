@@ -4,18 +4,15 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { TaskCard } from '@/components/task-card';
 import { Button } from '@/components/ui/button';
-import { LayoutGrid, List, Sparkles, CalendarDays } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { AnalyticsHeader } from '@/components/analytics-header';
 import { CalendarView } from '@/components/calendar-view';
-import { PomodoroWidget } from '@/components/pomodoro-widget';
+import { Archive, LayoutGrid, List, Sparkles, CalendarDays } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 
 export default function Dashboard() {
   const [tasks, setTasks] = useState<any[]>([]);
-  const [view, setView] = useState<'kanban' | 'list' | 'calendar'>('kanban');
+  const [view, setView] = useState<'kanban' | 'list' | 'calendar' | 'archived'>('kanban');
   const [loading, setLoading] = useState(true);
-  const [focusTask, setFocusTask] = useState<any>(null);
 
   useEffect(() => {
     fetchTasks();
@@ -50,15 +47,24 @@ export default function Dashboard() {
 
   async function fetchTasks() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('tareas')
-      .select('*')
-      .eq('archivada', false)
-      .order('creado_at', { ascending: false });
+    let query = supabase.from('tareas').select('*');
+    
+    if (view === 'archived') {
+      query = query.eq('archivada', true);
+    } else {
+      query = query.eq('archivada', false);
+    }
+
+    const { data, error } = await query.order('creado_at', { ascending: false });
 
     if (data) setTasks(data);
     setLoading(false);
   }
+
+  // Reload tasks when view changes to archived/back
+  useEffect(() => {
+    fetchTasks();
+  }, [view]);
 
   const columns = ['por_empezar', 'en_proceso', 'lista'];
 
@@ -138,6 +144,15 @@ export default function Dashboard() {
               <CalendarDays className="w-4 h-4 mr-2" />
               Calendario
             </Button>
+            <Button
+              variant={view === 'archived' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setView('archived')}
+              className="h-8 px-3"
+            >
+              <Archive className="w-4 h-4 mr-2" />
+              Archivados
+            </Button>
             <div className="w-px h-4 bg-border mx-1"></div>
             <ThemeToggle />
           </div>
@@ -173,7 +188,7 @@ export default function Dashboard() {
                   
                   <div className="space-y-4">
                     {tasks.filter((t) => t.estado === col).map((task) => (
-                      <TaskCard key={task.id} task={task} onFocus={() => setFocusTask(task)} />
+                      <TaskCard key={task.id} task={task} />
                     ))}
                     {tasks.filter((t) => t.estado === col).length === 0 && (
                       <div className="border border-dashed border-border/50 rounded-xl h-24 flex items-center justify-center text-muted-foreground/40 text-xs font-medium">
@@ -187,8 +202,6 @@ export default function Dashboard() {
           </div>
         )}
       </div>
-
-      <PomodoroWidget task={focusTask} onClose={() => setFocusTask(null)} />
     </main>
   );
 }

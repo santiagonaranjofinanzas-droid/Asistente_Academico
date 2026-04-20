@@ -17,6 +17,14 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
 async def run_scraper():
+    """
+    SECURITY POLICY: READ-ONLY SCRAPER
+    This scraper is strictly forbidden from:
+    1. Clicking 'Submit', 'Delete', or 'Edit' buttons for assignments.
+    2. Modifying any university files or data.
+    3. Uploading content to the Moodle platform.
+    It ONLY uses navigation and data extraction (innerText/getAttribute).
+    """
     if not SUPABASE_URL or not SUPABASE_KEY:
         print("Supabase credentials missing. Scraper will run in dry-run mode.")
         supabase: Client = None
