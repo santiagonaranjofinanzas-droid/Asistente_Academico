@@ -8,6 +8,7 @@ import { AnalyticsHeader } from '@/components/analytics-header';
 import { CalendarView } from '@/components/calendar-view';
 import { Archive, LayoutGrid, List, Sparkles, CalendarDays } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Dashboard() {
   const [tasks, setTasks] = useState<any[]>([]);
@@ -166,7 +167,7 @@ export default function Dashboard() {
             <p className="animate-pulse font-medium">Cargando tareas...</p>
           </div>
         ) : view === 'calendar' ? (
-          <CalendarView tasks={tasks} onFocusTask={setFocusTask} />
+          <CalendarView tasks={tasks} />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
             <AnimatePresence mode="popLayout">

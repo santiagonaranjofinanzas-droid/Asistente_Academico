@@ -89,43 +89,57 @@ export function CalendarView({ tasks, onFocusTask }: { tasks: any[], onFocusTask
               const isCurrentMonth = isSameMonth(day, monthStart);
               const isCurrentDay = isToday(day);
 
+              const total = dayTasks.length;
+              const completed = dayTasks.filter(t => t.estado === 'entregada' || t.estado === 'lista').length;
+              const overdue = dayTasks.filter(t => (t.estado === 'por_empezar' || t.estado === 'en_proceso') && t.fecha_entrega && isPast(new Date(t.fecha_entrega)) && !isToday(new Date(t.fecha_entrega))).length;
+
+              // TradeZella Heatmap coloration logic
+              let heatmapColor = isCurrentMonth ? 'bg-card/40 border-border/50' : 'bg-transparent border-transparent opacity-40';
+              let textColor = 'text-muted-foreground';
+
+              if (total > 0) {
+                if (overdue > 0) {
+                  heatmapColor = 'bg-red-500/15 border-red-500/30 hover:bg-red-500/25';
+                  textColor = 'text-red-500 font-bold';
+                } else if (completed === total) {
+                  heatmapColor = 'bg-green-500/15 border-green-500/30 hover:bg-green-500/25';
+                  textColor = 'text-green-500 font-bold';
+                } else if (completed > 0) {
+                  heatmapColor = 'bg-yellow-500/15 border-yellow-500/30 hover:bg-yellow-500/25';
+                  textColor = 'text-yellow-600 dark:text-yellow-400 font-bold';
+                } else {
+                  heatmapColor = 'bg-slate-500/10 border-slate-500/20 hover:bg-slate-500/20';
+                  textColor = 'text-primary font-bold';
+                }
+              }
+
               return (
                 <div
                   key={day.toString()}
-                  onClick={() => { if (dayTasks.length > 0) setSelectedDay(day); }}
-                  className={`min-h-[140px] p-2 rounded-xl border transition-all duration-300 relative flex flex-col gap-1
-                    ${isCurrentMonth ? 'bg-card/40 border-border/50' : 'bg-transparent border-transparent opacity-40'}
-                    ${dayTasks.length > 0 ? 'cursor-pointer hover:border-primary/50 hover:bg-card/80 hover:shadow-md' : ''}
-                    ${isCurrentDay ? 'ring-2 ring-primary ring-opacity-50' : ''}
+                  onClick={() => { if (total > 0) setSelectedDay(day); }}
+                  className={`min-h-[100px] p-3 rounded-xl border transition-all duration-300 relative flex flex-col items-center justify-center gap-1
+                    ${heatmapColor}
+                    ${total > 0 ? 'cursor-pointer hover:shadow-md hover:scale-[1.02]' : ''}
+                    ${isCurrentDay ? 'ring-2 ring-primary ring-opacity-100 ring-offset-2 ring-offset-background' : ''}
                   `}
                 >
-                  <div className="flex justify-between items-start mb-1">
-                    <span className={`text-sm font-semibold w-7 h-7 flex items-center justify-center rounded-full ${isCurrentDay ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>
-                      {format(day, 'd')}
-                    </span>
-                    {dayTasks.length > 0 && (
-                      <span className="text-[10px] font-bold bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-                        {dayTasks.length}
+                  <span className={`text-lg transition-colors ${textColor}`}>
+                    {format(day, 'd')}
+                  </span>
+                  
+                  {total > 0 && (
+                    <div className="flex flex-col items-center mt-1">
+                      <span className={`text-[10px] uppercase tracking-wider opacity-80 ${textColor}`}>
+                        {completed}/{total}
                       </span>
-                    )}
-                  </div>
-
-                  {/* Task Pills */}
-                  <div className="flex flex-col gap-1.5 flex-1 overflow-hidden">
-                    {dayTasks.slice(0, 3).map((t, idx) => (
-                      <div 
-                        key={idx} 
-                        className={`text-[10px] truncate px-1.5 py-1 rounded border font-medium ${getStatusColor(t.estado)}`}
-                      >
-                        {t.titulo}
+                      <div className="w-full bg-background/50 h-1 mt-1.5 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-current transition-all"
+                          style={{ width: `${(completed / total) * 100}%` }}
+                        />
                       </div>
-                    ))}
-                    {dayTasks.length > 3 && (
-                      <div className="text-[10px] text-muted-foreground text-center font-medium opacity-70">
-                        +{dayTasks.length - 3} más
-                      </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -145,14 +159,10 @@ export function CalendarView({ tasks, onFocusTask }: { tasks: any[], onFocusTask
             </SheetDescription>
           </SheetHeader>
           <div className="space-y-4 pb-12">
-            {selectedDayTasks.map(task => (
+             {selectedDayTasks.map(task => (
                <TaskCard 
                  key={task.id} 
                  task={task} 
-                 onFocus={onFocusTask ? () => {
-                   onFocusTask(task);
-                   setSelectedDay(null); // Close sheet when starting focus
-                 } : undefined} 
                />
             ))}
           </div>

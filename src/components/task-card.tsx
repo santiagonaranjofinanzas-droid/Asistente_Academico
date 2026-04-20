@@ -24,7 +24,46 @@ const statusColors = {
   entregada: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
 };
 
+import { Sparkles as SparklesIcon, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+
 export function TaskCard({ task }: { task: Task }) {
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+
+  const handleSummarize = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (summary) {
+      setSummary(null);
+      return;
+    }
+
+    setIsSummarizing(true);
+    try {
+      const response = await fetch('http://127.0.0.1:11434/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'llama3.2',
+          prompt: `Eres un asistente académico experto. Resume brevemente de qué trata esta tarea y da 3 pasos sugeridos para realizarla rápidamente. 
+          Tarea: ${task.titulo}
+          Materia: ${task.materia}
+          Descripción/Contexto: ${task.descripcion}. 
+          Responde en español, sé directo, usa viñetas concisas y no más de 100 palabras en total.`,
+          stream: false
+        })
+      });
+      
+      const data = await response.json();
+      setSummary(data.response);
+    } catch (error) {
+      console.error('Error contacting Ollama:', error);
+      setSummary('No se pudo conectar con Llama 3.2 (localhost:11434). Asegúrate de que Ollama esté corriendo.');
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -57,7 +96,7 @@ export function TaskCard({ task }: { task: Task }) {
           <p className="text-xs text-muted-foreground line-clamp-2 mb-4">
             {task.descripcion || 'Sin descripción adicional.'}
           </p>
-          <div className="flex items-center gap-4 text-[11px] font-medium">
+          <div className="flex items-center gap-4 text-[11px] font-medium border-b border-border/50 pb-3 mb-3">
             <div className="flex items-center gap-1.5 text-muted-foreground">
               <Calendar className="w-3.5 h-3.5" />
               <span>{task.fecha_entrega ? format(new Date(task.fecha_entrega), 'd MMM', { locale: es }) : 'Sin fecha'}</span>
@@ -79,6 +118,32 @@ export function TaskCard({ task }: { task: Task }) {
               </div>
             )}
           </div>
+          
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={handleSummarize}
+            disabled={isSummarizing}
+            className="w-full h-7 text-xs text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+          >
+            {isSummarizing ? (
+              <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
+            ) : (
+              <SparklesIcon className="w-3.5 h-3.5 mr-2 text-primary" />
+            )}
+            {summary ? 'Cerrar Resumen' : 'Deep Reader (IA)'}
+          </Button>
+
+          {summary && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs text-muted-foreground whitespace-pre-wrap select-text cursor-text"
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+               {summary}
+            </motion.div>
+          )}
         </CardContent>
       </Card>
       </div>
