@@ -41,10 +41,14 @@ async def run_scraper():
             print("Logged in successfully.")
 
             # Navigate to Timeline/Calendar or similar where tasks are listed
-            # Note: This part is site-specific. I'll use common moodle selectors as placeholder logic.
+            # Note: This part is site-specific.
             # Usually 'https://micampusvirtual.espe.edu.ec/calendar/view.php?view=upcoming'
             await page.goto(f"{URL}/calendar/view.php?view=upcoming")
-            await page.wait_for_selector(".eventlist")
+            await page.wait_for_selector(".eventlist", timeout=10000)
+            
+            # Scroll to ensure all lazy-loaded events are present if applicable
+            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            await asyncio.sleep(2)
 
             events = await page.query_selector_all(".event")
             tasks_found = []
@@ -62,16 +66,26 @@ async def run_scraper():
                 fecha_elem = await event.query_selector(".date")
                 fecha_str = await fecha_elem.inner_text() if fecha_elem else ""
                 
-                # Parse date logic
-                parsed_date = dateparser.parse(fecha_str, languages=['es'])
+                # Robust Parse date logic
+                # Moodle often uses 'Hoy, HH:MM' or 'Mañana, HH:MM'
+                parsed_date = dateparser.parse(
+                    fecha_str, 
+                    languages=['es'],
+                    settings={'RELATIVE_BASE': datetime.datetime.now(), 'PREFER_DATES_FROM': 'future'}
+                )
                 fecha_entrega = parsed_date.isoformat() if parsed_date else None
+
+                # Clean description (remove technical IDs if redundant)
+                clean_desc = f"Fecha original: {fecha_str}"
+                if not fecha_entrega:
+                    clean_desc += " (Error al procesar fecha)"
 
                 # Upsert to Supabase
                 task_data = {
                     "id_moodle": moodle_id,
                     "titulo": title,
                     "materia": materia,
-                    "descripcion": f"ID ESPE: {moodle_id} | Fecha: {fecha_str}",
+                    "descripcion": clean_desc,
                     "estado": "por_empezar",
                     "archivada": False,
                     "fecha_entrega": fecha_entrega

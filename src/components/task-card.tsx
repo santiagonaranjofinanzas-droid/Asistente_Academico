@@ -3,8 +3,10 @@
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, CheckCircle2, Clock, MoreVertical, Timer } from 'lucide-react';
+import { Calendar, CheckCircle2, Clock, MoreVertical, Timer, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { formatDistanceToNow, isPast, isToday, isTomorrow, differenceInDays, format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 interface Task {
   id: string;
@@ -49,15 +51,27 @@ export function TaskCard({ task, onFocus }: { task: Task, onFocus?: () => void }
           <p className="text-xs text-muted-foreground line-clamp-2 mb-4">
             {task.descripcion || 'Sin descripción adicional.'}
           </p>
-          <div className="flex items-center gap-4 text-[11px] text-muted-foreground font-medium">
-            <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-4 text-[11px] font-medium">
+            <div className="flex items-center gap-1.5 text-muted-foreground">
               <Calendar className="w-3.5 h-3.5" />
-              <span>{new Date(task.fecha_entrega || Date.now()).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })}</span>
+              <span>{task.fecha_entrega ? format(new Date(task.fecha_entrega), 'd MMM', { locale: es }) : 'Sin fecha'}</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5" />
-              <span>Restante: 2d</span>
-            </div>
+            
+            {task.fecha_entrega && (
+              <div className={`flex items-center gap-1.5 ${isPast(new Date(task.fecha_entrega)) && !isToday(new Date(task.fecha_entrega)) ? 'text-destructive' : 'text-muted-foreground'}`}>
+                {isPast(new Date(task.fecha_entrega)) && !isToday(new Date(task.fecha_entrega)) ? (
+                  <AlertCircle className="w-3.5 h-3.5" />
+                ) : (
+                  <Clock className="w-3.5 h-3.5" />
+                )}
+                <span>
+                  {isToday(new Date(task.fecha_entrega)) ? 'Vence hoy' : 
+                   isTomorrow(new Date(task.fecha_entrega)) ? 'Mañana' :
+                   isPast(new Date(task.fecha_entrega)) ? 'Vencida' :
+                   `Faltan ${differenceInDays(new Date(task.fecha_entrega), new Date())}d`}
+                </span>
+              </div>
+            )}
           </div>
           {onFocus && task.estado !== 'lista' && (
             <div className="mt-4 pt-3 border-t border-border/50">
