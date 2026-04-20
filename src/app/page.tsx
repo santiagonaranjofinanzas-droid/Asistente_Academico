@@ -56,7 +56,9 @@ export default function Dashboard() {
       query = query.eq('archivada', false);
     }
 
-    const { data, error } = await query.order('creado_at', { ascending: false });
+    const { data, error } = await query
+      .order('fecha_entrega', { ascending: true, nullsFirst: false })
+      .order('creado_at', { ascending: false });
 
     if (data) setTasks(data);
     setLoading(false);
@@ -168,6 +170,49 @@ export default function Dashboard() {
           </div>
         ) : view === 'calendar' ? (
           <CalendarView tasks={tasks} />
+        ) : view === 'list' ? (
+          <div className="space-y-12">
+            {[
+              { label: 'Lunes', index: 1 },
+              { label: 'Martes', index: 2 },
+              { label: 'Miércoles', index: 3 },
+              { label: 'Jueves', index: 4 },
+              { label: 'Viernes', index: 5 },
+              { label: 'Sábado', index: 6 },
+              { label: 'Domingo', index: 0 },
+              { label: 'Sin fecha', index: -1 }
+            ].map((day) => {
+              const dayTasks = tasks.filter((t) => {
+                if (!t.fecha_entrega) return day.index === -1;
+                const d = new Date(t.fecha_entrega);
+                // getDay() returns 0 for Sunday, 1 for Monday...
+                return d.getDay() === day.index && day.index !== -1;
+              });
+
+              if (dayTasks.length === 0 && day.label !== 'Sin fecha') return null;
+              if (dayTasks.length === 0 && day.label === 'Sin fecha' && tasks.every(t => t.fecha_entrega)) return null;
+
+              return (
+                <div key={day.label} className="space-y-4">
+                  <div className="flex items-center gap-4 px-1">
+                    <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                      {day.label}
+                    </h2>
+                    <div className="h-px flex-1 bg-border/50"></div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-muted rounded-full border shadow-sm">
+                      {dayTasks.length}
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {dayTasks.map((task) => (
+                      <TaskCard key={task.id} task={task} showChecklist={true} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
             <AnimatePresence mode="popLayout">

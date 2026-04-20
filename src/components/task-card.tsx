@@ -23,6 +23,7 @@ interface Task {
   texto_extraido?: string;
   archivos_adjuntos?: Attachment[] | string;
   resumen_ia?: string;
+  checklist?: { id: string; text: string; completed: boolean }[];
 }
 
 const statusColors = {
@@ -32,12 +33,76 @@ const statusColors = {
   entregada: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
 };
 
-import { Sparkles as SparklesIcon, Loader2, Download as DownloadIcon, FileText, Brain } from 'lucide-react';
+import { Sparkles as SparklesIcon, Loader2, Download as DownloadIcon, FileText, Brain, Plus, Trash2, CheckCircle } from 'lucide-react';
 import { useState, useMemo } from 'react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { supabase } from '@/lib/supabase';
 
-export function TaskCard({ task }: { task: Task }) {
+export function TaskCard({ task, showChecklist = false }: { task: Task, showChecklist?: boolean }) {
   const [showSummary, setShowSummary] = useState(false);
   const [showExtracted, setShowExtracted] = useState(false);
+  const [newItemText, setNewItemText] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // Initialize checklist from task or empty array
+  const checklist = useMemo(() => {
+    if (!task.checklist) return [];
+    return Array.isArray(task.checklist) ? task.checklist : [];
+  }, [task.checklist]);
+
+  const handleAddItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newItemText.trim()) return;
+
+    const newItem = {
+      id: crypto.randomUUID(),
+      text: newItemText.trim(),
+      completed: false
+    };
+
+    const updatedChecklist = [...checklist, newItem];
+    
+    // Update Supabase
+    const { error } = await supabase
+      .from('tareas')
+      .update({ checklist: updatedChecklist })
+      .eq('id', task.id);
+
+    if (!error) {
+      setNewItemText('');
+    }
+  };
+
+  const handleToggleItem = async (itemId: string) => {
+    const updatedChecklist = checklist.map(item => 
+      item.id === itemId ? { ...item, completed: !item.completed } : item
+    );
+
+    const wasCompleted = updatedChecklist.find(i => i.id === itemId)?.completed;
+    
+    let updatedEstado = task.estado;
+    // Auto move to "en_proceso" if a check is marked and it was "por_empezar"
+    if (wasCompleted && task.estado === 'por_empezar') {
+      updatedEstado = 'en_proceso';
+    }
+
+    const { error } = await supabase
+      .from('tareas')
+      .update({ 
+        checklist: updatedChecklist,
+        estado: updatedEstado
+      })
+      .eq('id', task.id);
+  };
+
+  const handleDeleteItem = async (itemId: string) => {
+    const updatedChecklist = checklist.filter(item => item.id !== itemId);
+    
+    await supabase
+      .from('tareas')
+      .update({ checklist: updatedChecklist })
+      .eq('id', task.id);
+  };
 
   // Parse archivos_adjuntos which may be a JSON string or already an array
   const attachments: Attachment[] = useMemo(() => {
@@ -189,6 +254,57 @@ export function TaskCard({ task }: { task: Task }) {
             >
                {task.texto_extraido}
             </motion.div>
+          )}
+
+          {/* Checklist Section */}
+          {showChecklist && (
+            <div className="mt-6 space-y-3 pt-4 border-t border-border/50">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                  <CheckCircle className="w-3 h-3" />
+                  Checklist ({checklist.filter(i => i.completed).length}/{checklist.length})
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {checklist.map((item) => (
+                  <div key={item.id} className="flex items-center gap-2 group/item">
+                    <Checkbox 
+                      id={item.id} 
+                      checked={item.completed}
+                      onCheckedChange={() => handleToggleItem(item.id)}
+                      className="w-3.5 h-3.5"
+                    />
+                    <label 
+                      htmlFor={item.id}
+                      className={`text-[11px] flex-1 cursor-pointer transition-colors ${item.completed ? 'text-muted-foreground/50 line-through' : 'text-foreground/80'}`}
+                    >
+                      {item.text}
+                    </label>
+                    <button 
+                      onClick={() => handleDeleteItem(item.id)}
+                      className="opacity-0 group-hover/item:opacity-100 p-1 hover:text-destructive transition-all"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <form onSubmit={handleAddItem} className="flex gap-2 mt-2">
+                <input
+                  type="text"
+                  placeholder="Añadir ítem..."
+                  value={newItemText}
+                  onChange={(e) => setNewItemText(e.target.value)}
+                  className="flex-1 bg-muted/30 border-none rounded-md px-2 py-1 text-[11px] focus:ring-1 focus:ring-primary/30 outline-none"
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <Button type="submit" size="icon" variant="ghost" className="h-6 w-6">
+                  <Plus className="w-3 h-3" />
+                </Button>
+              </form>
+            </div>
           )}
         </CardContent>
       </Card>

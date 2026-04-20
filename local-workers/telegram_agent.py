@@ -2,7 +2,6 @@ import os
 import asyncio
 import json
 import logging
-import uuid
 import requests
 from datetime import datetime, timedelta
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
@@ -48,16 +47,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logging.warning(f"Unauthorized access attempt from user {user.id}")
         return
 
-    welcome = (
-        f"¡Hola {user.mention_html()}! 🎓 Soy tu *Asistente Académico ESPE* 2.0.\n\n"
-        "Puedo ayudarte a:\n"
-        "✅ Ver tus tareas (/tareas)\n"
-        "🤔 Recomendar por dónde empezar (/recomendar)\n"
-        "👥 Distribuir trabajos grupales (/distribuir)\n"
-        "📝 Capturar ideas simplemente escribiéndolas."
-    )
     await update.message.reply_html(
-        welcome,
+        rf"¡Hola {user.mention_html()}! 🎓 Soy tu *Asistente Académico ESPE* virtual.",
         reply_markup=ReplyKeyboardMarkup([
             [KeyboardButton("/tareas"), KeyboardButton("/recomendar")],
             [KeyboardButton("/distribuir"), KeyboardButton("/ayuda")]
@@ -69,6 +60,7 @@ async def view_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != TELEGRAM_CHAT_ID: return
     await update.message.reply_chat_action("typing")
     try:
+        # Fetch tasks not archived, ordered by deadline
         response = supabase.table("tareas").select("*").eq("archivada", False).order("fecha_entrega", desc=False).execute()
         tasks = response.data
 
@@ -80,15 +72,15 @@ async def view_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for t in tasks:
             date_str = "Sin fecha"
             if t['fecha_entrega']:
-                dt = datetime.fromisoformat(t['fecha_entrega'].replace('Z', ''))
-                date_str = dt.strftime("%d/%m")
+                dt = datetime.fromisoformat(t['fecha_entrega'])
+                date_str = dt.strftime("%d/%m %H:%M")
             
             icon = "🔴" if t['estado'] == 'por_empezar' else "🔵"
             msg += f"{icon} *{t['titulo']}*\n   📅 {date_str} | 📚 {t['materia']}\n\n"
         
         await update.message.reply_text(msg, parse_mode='Markdown')
     except Exception as e:
-        await update.message.reply_text(f"❌ Error DB: {e}")
+        await update.message.reply_text(f"❌ Error consultando base de datos: {e}")
 
 async def recommend_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Uses IA to decide which task to start with."""
@@ -106,75 +98,49 @@ async def recommend_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for t in tasks:
             task_summaries.append(f"- {t['titulo']} (Materia: {t['materia']}, Vence: {t['fecha_entrega']})")
         
-        prompt = f"""Como mi tutor académico personal de la ESPE, analiza estas tareas y dime cuál me recomiendas empezar hoy y por qué.
+        prompt = f"""Como mi tutor académico, analiza estas 5 tareas y dime cuál me recomiendas empezar hoy y por qué. Considera la cercanía de la fecha. Sea breve y motivador.
 Tareas:
-{chr(10).join(task_summaries)}
-Responde brevemente en español, sé motivador y directo."""
+{chr(10).join(task_summaries)}"""
 
         ai_response = await get_ollama_response(prompt)
-        await update.message.reply_text(f"🤖 *Consejo del Tutor IA*:\n\n{ai_response}", parse_mode='Markdown')
+        await update.message.reply_text(f"🤖 *Recomendación del Tutor AI*:\n\n{ai_response}", parse_mode='Markdown')
     except Exception as e:
-        await update.message.reply_text(f"Error IA: {e}")
-
-async def distribute_work(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Suggests how to split a group task."""
-    if update.effective_user.id != TELEGRAM_CHAT_ID: return
-    await update.message.reply_text("Dime de qué trata el trabajo grupal y cuántos integrantes son (ej: 'Proyecto de software, 4 personas').")
+        await update.message.reply_text(f"Hubo un problema analizando tus tareas: {e}")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Processes natural language messages."""
     if update.effective_user.id != TELEGRAM_CHAT_ID: return
-    text = update.message.text
-    text_lower = text.lower()
+    text = update.message.text.lower()
     
-    # 1. Check for specific question patterns
-    if any(q in text_lower for q in ["que hago", "mis tareas", "deberes"]):
+    # Simple shortcuts
+    if "que tengo que hacer" in text or "tareas" in text:
         await view_tasks(update, context)
         return
     
-    if any(q in text_lower for q in ["recomienda", "ayuda", "recomiendame", "por cual empiezo"]):
+    if "recomienda" in text or "por cual empiezo" in text:
         await recommend_start(update, context)
         return
 
-    # 2. IA Help vs Quick Capture
-    if "?" in text or len(text.split()) > 8:
-        # It's a conversation/question
-        await update.message.reply_chat_action("typing")
-        ai_response = await get_ollama_response(f"Responde como un asistente académico de la ESPE: {text}")
-        await update.message.reply_text(ai_response)
-    else:
-        # It's a Quick Capture (Short phrase)
-        await update.message.reply_chat_action("upload_document")
-        default_due_date = (datetime.now() + timedelta(days=7)).isoformat()
-        task_data = {
-            "id_moodle": f"msg_{uuid.uuid4().hex[:8]}",
-            "titulo": text[:50] + ("..." if len(text) > 50 else ""),
-            "materia": "General/Telegram",
-            "descripcion": text,
-            "estado": "por_empezar",
-            "archivada": False,
-            "fecha_entrega": default_due_date
-        }
-        try:
-            supabase.table("tareas").insert(task_data).execute()
-            await update.message.reply_text(f"✅ *Capturado*: '{text}' añadido al Dashboard.", parse_mode='Markdown')
-        except Exception as e:
-            await update.message.reply_text("❌ Error al guardar captura rápida.")
+    # Use AI for everything else
+    await update.message.reply_chat_action("typing")
+    ai_response = await get_ollama_response(f"Responde brevemente como un asistente académico de la universidad ESPE de Ecuador: {update.message.text}")
+    await update.message.reply_text(ai_response)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Displays help information."""
-    help_text = (
-        "📖 *Guía del Asistente Académico*\n\n"
-        "/tareas - Lista de deberes pendientes.\n"
-        "/recomendar - Planificación inteligente.\n"
-        "/distribuir - Repartir carga grupal.\n\n"
-        "💡 *Tip*: Si me envías un mensaje corto como 'Hacer mapa mental', lo anotaré como tarea automáticamente."
-    )
+    """Help info."""
+    help_text = """
+📖 *Guía del Asistente*:
+/tareas - Ver lo que tienes pendiente.
+/recomendar - Deja que la IA te diga por dónde empezar.
+/distribuir - Pídeme ayuda para repartir un trabajo grupal.
+    
+También puedes hablarme normalmente, como: "¿Qué tareas tengo hoy?" o "¿Cómo hago un resumen?".
+    """
     await update.message.reply_text(help_text, parse_mode='Markdown')
 
-def main():
+def run_agent():
     if not TELEGRAM_TOKEN:
-        print("Error: TELEGRAM_BOT_TOKEN missing.")
+        print("Error: TELEGRAM_BOT_TOKEN no configurado.")
         return
 
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
@@ -182,12 +148,11 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("tareas", view_tasks))
     app.add_handler(CommandHandler("recomendar", recommend_start))
-    app.add_handler(CommandHandler("distribuir", distribute_work))
     app.add_handler(CommandHandler("ayuda", help_command))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
 
-    print("[LOG] Super Agente de Telegram Iniciado")
+    print("🚀 Agente de Telegram en ejecución...")
     app.run_polling()
 
 if __name__ == "__main__":
-    main()
+    run_agent()

@@ -4,8 +4,7 @@ __pycache__/
 .next/
 out/
 build/
-.env
-.env.local
+**/.env*
 *.db
 credenciales.txt
 index.lock
