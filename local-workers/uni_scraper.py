@@ -6,6 +6,9 @@ from dotenv import load_dotenv
 import datetime
 import dateparser
 from telegram_notifier import send_notification
+import pdfplumber
+import docx
+import mimetypes
 
 load_dotenv()
 
@@ -57,9 +60,35 @@ async def run_scraper():
                 await send_notification("ℹ️ *Scraper ESPE*: No hay tareas pendientes en la línea de tiempo.")
                 return
 
-            # Ensure all items are loaded
+            # Ensure timeline is set to "All" (Todos) to not miss distant deadlines
+            try:
+                # Some Moodle versions use data-filtername="all" inside the timeline dropdown
+                all_filter = await page.query_selector('[data-filtername="all"]')
+                if all_filter:
+                    await all_filter.click()
+                    await page.wait_for_timeout(2000)
+                else:
+                    # Alternative: Open the dropdown first
+                    dropdown = await page.query_selector('[data-action="timeline-filter-dropdown"]')
+                    if dropdown:
+                        await dropdown.click()
+                        await page.wait_for_timeout(500)
+                        all_filter_alt = await page.query_selector('[data-filtername="all"]')
+                        if all_filter_alt:
+                            await all_filter_alt.click()
+                            await page.wait_for_timeout(2000)
+            except Exception as e:
+                print(f"Filter audit skipped/failed: {e}")
+
+            # Ensure all items are loaded by clicking "Show more" or scrolling
             for _ in range(3):
                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                try:
+                    more_btn = await page.query_selector('[data-action="more-events"]')
+                    if more_btn and await more_btn.is_visible():
+                        await more_btn.click()
+                except:
+                    pass
                 await asyncio.sleep(1)
 
             events = await page.query_selector_all('[data-region="event-list-item"]')
@@ -122,6 +151,64 @@ async def run_scraper():
                 btn_text = await action_btn.inner_text() if action_btn else ""
                 is_delivered = "Editar entrega" in btn_text
                 
+                texto_extraido = ""
+                archivos_adjuntos = []
+                
+                # Fetch deeper context and files if not delivered
+                if link and "assign" in link and not is_delivered:
+                    try:
+                        task_page = await context.new_page()
+                        await task_page.goto(link)
+                        await task_page.wait_for_load_state("networkidle")
+                        
+                        desc_elem = await task_page.query_selector('.box.py-3.generalbox.boxaligncenter, .intro')
+                        if desc_elem:
+                            texto_extraido += await desc_elem.inner_text() + "\n\n"
+                            
+                        file_links = await task_page.query_selector_all('.attachments a')
+                        for fle in file_links:
+                            f_url = await fle.get_attribute('href')
+                            f_name = await fle.inner_text()
+                            if f_url and ("?forcedownload=1" in f_url or ".pdf" in f_url or ".docx" in f_url):
+                                try:
+                                    async with task_page.expect_download(timeout=10000) as download_info:
+                                        await fle.click()
+                                    download = await download_info.value
+                                    ext = os.path.splitext(f_name)[1].lower()
+                                    temp_path = os.path.join(os.getcwd(), download.suggested_filename)
+                                    await download.save_as(temp_path)
+                                    
+                                    if ext == '.pdf':
+                                        with pdfplumber.open(temp_path) as pdf:
+                                            texto_extraido += f"[{f_name}]:\n" + "\n".join([p.extract_text() for p in pdf.pages if p.extract_text()]) + "\n"
+                                    elif ext == '.docx':
+                                        doc = docx.Document(temp_path)
+                                        texto_extraido += f"[{f_name}]:\n" + "\n".join([para.text for para in doc.paragraphs]) + "\n"
+                                        
+                                    if supabase:
+                                        with open(temp_path, "rb") as f:
+                                            try:
+                                                supabase.storage.from_("documentos_espe").upload(
+                                                    path=f"{moodle_id}/{download.suggested_filename}",
+                                                    file=f,
+                                                    file_options={"content-type": mimetypes.guess_type(download.suggested_filename)[0]}
+                                                )
+                                            except Exception as up_e:
+                                                if "Duplicate" not in str(up_e):
+                                                    print(f"Storage upload error: {up_e}")
+                                        public_url = supabase.storage.from_("documentos_espe").get_public_url(f"{moodle_id}/{download.suggested_filename}")
+                                        archivos_adjuntos.append({"nombre": f_name, "url": public_url})
+                                        
+                                    os.remove(temp_path)
+                                except Exception as inner_e:
+                                    print(f"File extraction failed for {f_name}: {inner_e}")
+                        await task_page.close()
+                    except Exception as e:
+                        print(f"Failed deep parsing {title}: {e}")
+                
+                # Truncate text for safety
+                texto_extraido = texto_extraido[:3000]
+
                 task_data = {
                     "id_moodle": moodle_id,
                     "titulo": title,
@@ -129,11 +216,20 @@ async def run_scraper():
                     "descripcion": f"Fecha original: {fecha_str} | Info: {materia_raw}",
                     "estado": "entregada" if is_delivered else "por_empezar",
                     "archivada": is_delivered,
-                    "fecha_entrega": fecha_entrega
+                    "fecha_entrega": fecha_entrega,
                 }
                 
                 if supabase:
-                    res = supabase.table("tareas").upsert(task_data, on_conflict="id_moodle").execute()
+                    try:
+                        # Try inserting with new columns
+                        full_data = {**task_data, "texto_extraido": texto_extraido, "archivos_adjuntos": archivos_adjuntos}
+                        supabase.table("tareas").upsert(full_data, on_conflict="id_moodle").execute()
+                    except Exception as e:
+                        if "column" in str(e).lower() and "does not exist" in str(e).lower():
+                            print("Warning: Nuevas columnas (texto_extraido, archivos_adjuntos) no creadas aún en Supabase. Usando Schema Fallback.")
+                            supabase.table("tareas").upsert(task_data, on_conflict="id_moodle").execute()
+                        else:
+                            print(f"Error guardando {title}: {e}")
                     status_log = "[ENTREGADA]" if is_delivered else "[PENDIENTE]"
                     print(f"Task synced {status_log}: {title} | Materia: {materia}")
                 

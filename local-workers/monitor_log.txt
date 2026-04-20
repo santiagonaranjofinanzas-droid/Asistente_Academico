@@ -22,7 +22,7 @@ Traceback (most recent call last):
     self._http_client = http_client or Client(
                                        ^^^^^^^
 TypeError: Client.__init__() got an unexpected keyword argument 'proxy'
-Exception ignored in: <function SyncGoTrueClient.__del__ at 0x000001FF3756EC00>
+Exception ignored in: <function SyncGoTrueClient.__del__ at 0x000001F4A53AEC00>
 Traceback (most recent call last):
   File "C:\Users\NuevoAdmin\Desktop\Universidad\Asistente Academico\local-workers\.venv\Lib\site-packages\supabase_auth\_sync\gotrue_client.py", line 1287, in __del__
     if self._refresh_token_timer:

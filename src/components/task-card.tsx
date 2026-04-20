@@ -15,6 +15,8 @@ interface Task {
   descripcion: string;
   fecha_entrega: string;
   estado: string;
+  texto_extraido?: string;
+  archivos_adjuntos?: { nombre: string, url: string }[];
 }
 
 const statusColors = {
@@ -24,7 +26,7 @@ const statusColors = {
   entregada: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
 };
 
-import { Sparkles as SparklesIcon, Loader2 } from 'lucide-react';
+import { Sparkles as SparklesIcon, Loader2, Download as DownloadIcon } from 'lucide-react';
 import { useState } from 'react';
 
 export function TaskCard({ task }: { task: Task }) {
@@ -40,6 +42,8 @@ export function TaskCard({ task }: { task: Task }) {
 
     setIsSummarizing(true);
     try {
+      const extraContext = task.texto_extraido ? `\nContexto Adjunto Extraído del PDF/Word: ${task.texto_extraido}` : "";
+      
       const response = await fetch('http://127.0.0.1:11435/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -48,8 +52,9 @@ export function TaskCard({ task }: { task: Task }) {
           prompt: `Eres un asistente académico experto. Resume brevemente de qué trata esta tarea y da 3 pasos sugeridos para realizarla rápidamente. 
           Tarea: ${task.titulo}
           Materia: ${task.materia}
-          Descripción/Contexto: ${task.descripcion}. 
-          Responde en español, sé directo, usa viñetas concisas y no más de 100 palabras en total.`,
+          Descripción General: ${task.descripcion}. 
+          ${extraContext}
+          Responde en español, sé directo, usa viñetas concisas y no más de 100 palabras en total. No incluyas información innecesaria.`,
           stream: false
         })
       });
@@ -118,6 +123,23 @@ export function TaskCard({ task }: { task: Task }) {
               </div>
             )}
           </div>
+          
+          {task.archivos_adjuntos && task.archivos_adjuntos.length > 0 && (
+            <div className="flex flex-col gap-1.5 mb-3">
+              {task.archivos_adjuntos.map((archivo, i) => (
+                <a 
+                  key={i} 
+                  href={archivo.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-2 py-1 rounded bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-[10px] text-muted-foreground w-fit max-w-full overflow-hidden"
+                >
+                  <DownloadIcon className="w-3 h-3 flex-shrink-0" />
+                  <span className="truncate">{archivo.nombre}</span>
+                </a>
+              ))}
+            </div>
+          )}
           
           <Button 
             variant="ghost" 
