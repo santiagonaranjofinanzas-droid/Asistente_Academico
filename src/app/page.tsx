@@ -7,8 +7,10 @@ import { Button } from '@/components/ui/button';
 import { LayoutGrid, List, Sparkles, CalendarDays } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AnalyticsHeader } from '@/components/analytics-header';
+import { AnalyticsHeader } from '@/components/analytics-header';
 import { CalendarView } from '@/components/calendar-view';
 import { PomodoroWidget } from '@/components/pomodoro-widget';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export default function Dashboard() {
   const [tasks, setTasks] = useState<any[]>([]);
@@ -57,6 +59,33 @@ export default function Dashboard() {
 
   const columns = ['por_empezar', 'en_proceso', 'lista'];
 
+  const handleDrop = async (e: React.DragEvent<HTMLElement>, newEstado: string) => {
+    e.preventDefault();
+    const taskId = e.dataTransfer.getData('taskId');
+    if (!taskId) return;
+
+    // Optimistic UI update
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, estado: newEstado } : t));
+
+    // Supabase update
+    const { error } = await supabase
+      .from('tareas')
+      .update({ estado: newEstado })
+      .eq('id', taskId);
+
+    if (error) {
+      console.error('Error updating task status:', error);
+      fetchTasks(); // Revert on error
+    }
+  };
+
+  const getColColor = (col: string) => {
+    if (col === 'por_empezar') return 'bg-slate-500/5 hover:bg-slate-500/10 border-slate-500/10';
+    if (col === 'en_proceso') return 'bg-blue-500/5 hover:bg-blue-500/10 border-blue-500/10';
+    if (col === 'lista') return 'bg-green-500/5 hover:bg-green-500/10 border-green-500/10';
+    return 'bg-muted/30';
+  };
+
   return (
     <main className="min-h-screen bg-background p-6 md:p-12">
       <div className="max-w-7xl mx-auto">
@@ -100,6 +129,8 @@ export default function Dashboard() {
               <CalendarDays className="w-4 h-4 mr-2" />
               Calendario
             </Button>
+            <div className="w-px h-4 bg-border mx-1"></div>
+            <ThemeToggle />
           </div>
         </header>
 
@@ -116,12 +147,17 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
             <AnimatePresence mode="popLayout">
               {columns.map((col) => (
-                <section key={col} className="space-y-6">
-                  <div className="flex justify-between items-center px-2">
+                <section 
+                  key={col} 
+                  className={`space-y-6 p-4 rounded-2xl border transition-colors duration-200 min-h-[500px] ${getColColor(col)}`}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => handleDrop(e, col)}
+                >
+                  <div className="flex justify-between items-center px-1">
                     <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
                       {col.replace('_', ' ')}
                     </h2>
-                    <span className="text-[10px] font-bold px-2 py-0.5 bg-muted rounded-full">
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-background rounded-full border shadow-sm">
                       {tasks.filter((t) => t.estado === col).length}
                     </span>
                   </div>
@@ -131,8 +167,8 @@ export default function Dashboard() {
                       <TaskCard key={task.id} task={task} onFocus={() => setFocusTask(task)} />
                     ))}
                     {tasks.filter((t) => t.estado === col).length === 0 && (
-                      <div className="border border-dashed rounded-xl h-24 flex items-center justify-center text-muted-foreground/30 text-xs">
-                        No hay tareas
+                      <div className="border border-dashed border-border/50 rounded-xl h-24 flex items-center justify-center text-muted-foreground/40 text-xs font-medium">
+                        Arrastra tareas aquí
                       </div>
                     )}
                   </div>

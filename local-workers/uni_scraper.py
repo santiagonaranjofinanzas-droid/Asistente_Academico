@@ -67,18 +67,21 @@ async def run_scraper():
                 fecha_str = await fecha_elem.inner_text() if fecha_elem else ""
                 
                 # Robust Parse date logic
-                # Moodle often uses 'Hoy, HH:MM' or 'Mañana, HH:MM'
+                # Clean moodle string anomalies
+                clean_fecha_str = fecha_str.replace('\t', ' ').replace('\n', ' ').strip()
+                clean_fecha_str = ' '.join(clean_fecha_str.split()) # Remove double spaces
+                
                 parsed_date = dateparser.parse(
-                    fecha_str, 
+                    clean_fecha_str, 
                     languages=['es'],
                     settings={'RELATIVE_BASE': datetime.datetime.now(), 'PREFER_DATES_FROM': 'future'}
                 )
                 fecha_entrega = parsed_date.isoformat() if parsed_date else None
 
                 # Clean description (remove technical IDs if redundant)
-                clean_desc = f"Fecha original: {fecha_str}"
+                clean_desc = f"Fecha original: {clean_fecha_str}"
                 if not fecha_entrega:
-                    clean_desc += " (Error al procesar fecha)"
+                    clean_desc += " (Moodle string parse failed)"
 
                 # Upsert to Supabase
                 task_data = {
