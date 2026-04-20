@@ -35,6 +35,8 @@ export function TaskCard({ task }: { task: Task }) {
 
   const handleSummarize = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    console.log('Botón Deep Reader presionado para:', task.titulo);
+    
     if (summary) {
       setSummary(null);
       return;
@@ -43,8 +45,9 @@ export function TaskCard({ task }: { task: Task }) {
     setIsSummarizing(true);
     try {
       const extraContext = task.texto_extraido ? `\nContexto Adjunto Extraído del PDF/Word: ${task.texto_extraido}` : "";
+      console.log('Enviando petición al puente local (localhost:11435)...');
       
-      const response = await fetch('http://127.0.0.1:11435/summarize', {
+      const response = await fetch('http://localhost:11435/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -59,11 +62,14 @@ export function TaskCard({ task }: { task: Task }) {
         })
       });
       
+      if (!response.ok) throw new Error(`Error en el puente: ${response.statusText}`);
+      
       const data = await response.json();
+      console.log('Respuesta recibida de la IA:', data.response ? 'Éxito' : 'Vacía');
       setSummary(data.response);
     } catch (error) {
-      console.error('Error contacting Ollama:', error);
-      setSummary('No se pudo conectar con el Puente de IA (localhost:11435). Asegúrate de haber ejecutado "iniciar_bots_invisible.vbs" en tu PC.');
+      console.error('Error detallado al conectar con Ollama Bridge:', error);
+      setSummary('No se pudo conectar con el Puente de IA (localhost:11435). Revisa que la consola de Windows no tenga errores y recarga la página.');
     } finally {
       setIsSummarizing(false);
     }

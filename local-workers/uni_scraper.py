@@ -174,30 +174,42 @@ async def run_scraper():
                                     async with task_page.expect_download(timeout=10000) as download_info:
                                         await fle.click()
                                     download = await download_info.value
-                                    ext = os.path.splitext(f_name)[1].lower()
-                                    temp_path = os.path.join(os.getcwd(), download.suggested_filename)
+                                    
+                                    # Sanitize filename (Moodle links often have the name in f_name)
+                                    clean_fname = f_name.strip().replace(" ", "_")
+                                    # Ensure it has the correct extension
+                                    ext = os.path.splitext(download.suggested_filename)[1].lower()
+                                    if not clean_fname.lower().endswith(ext):
+                                        clean_fname += ext
+                                    
+                                    # Clean forbidden characters for Windows/Linux
+                                    for char in '<>:"/\\|?*':
+                                        clean_fname = clean_fname.replace(char, '')
+                                    
+                                    temp_path = os.path.join(os.getcwd(), clean_fname)
                                     await download.save_as(temp_path)
                                     
                                     if ext == '.pdf':
                                         with pdfplumber.open(temp_path) as pdf:
-                                            texto_extraido += f"[{f_name}]:\n" + "\n".join([p.extract_text() for p in pdf.pages if p.extract_text()]) + "\n"
+                                            texto_extraido += f"[{clean_fname}]:\n" + "\n".join([p.extract_text() for p in pdf.pages if p.extract_text()]) + "\n"
                                     elif ext == '.docx':
                                         doc = docx.Document(temp_path)
-                                        texto_extraido += f"[{f_name}]:\n" + "\n".join([para.text for para in doc.paragraphs]) + "\n"
+                                        texto_extraido += f"[{clean_fname}]:\n" + "\n".join([para.text for para in doc.paragraphs]) + "\n"
                                         
                                     if supabase:
                                         with open(temp_path, "rb") as f:
                                             try:
+                                                # Use sanitized name for storage
                                                 supabase.storage.from_("documentos_espe").upload(
-                                                    path=f"{moodle_id}/{download.suggested_filename}",
+                                                    path=f"{moodle_id}/{clean_fname}",
                                                     file=f,
-                                                    file_options={"content-type": mimetypes.guess_type(download.suggested_filename)[0]}
+                                                    file_options={"content-type": mimetypes.guess_type(clean_fname)[0]}
                                                 )
                                             except Exception as up_e:
                                                 if "Duplicate" not in str(up_e):
                                                     print(f"Storage upload error: {up_e}")
-                                        public_url = supabase.storage.from_("documentos_espe").get_public_url(f"{moodle_id}/{download.suggested_filename}")
-                                        archivos_adjuntos.append({"nombre": f_name, "url": public_url})
+                                        public_url = supabase.storage.from_("documentos_espe").get_public_url(f"{moodle_id}/{clean_fname}")
+                                        archivos_adjuntos.append({"nombre": clean_fname, "url": public_url})
                                         
                                     os.remove(temp_path)
                                 except Exception as inner_e:
@@ -221,15 +233,18 @@ async def run_scraper():
                 
                 if supabase:
                     try:
-                        # Try inserting with new columns
-                        full_data = {**task_data, "texto_extraido": texto_extraido, "archivos_adjuntos": archivos_adjuntos}
+                        # Full data attempt
+                        full_data = {
+                            **task_data, 
+                            "texto_extraido": texto_extraido, 
+                            "archivos_adjuntos": archivos_adjuntos
+                        }
                         supabase.table("tareas").upsert(full_data, on_conflict="id_moodle").execute()
+                        status_log = "[ENTREGADA]" if is_delivered else "[PENDIENTE]"
+                        print(f"Task synced {status_log}: {title} | Materia: {materia}")
                     except Exception as e:
-                        if "column" in str(e).lower() and "does not exist" in str(e).lower():
-                            print("Warning: Nuevas columnas (texto_extraido, archivos_adjuntos) no creadas aún en Supabase. Usando Schema Fallback.")
-                            supabase.table("tareas").upsert(task_data, on_conflict="id_moodle").execute()
-                        else:
-                            print(f"Error guardando {title}: {e}")
+                        print(f"Error syncing {title}, trying fallback: {e}")
+                        supabase.table("tareas").upsert(task_data, on_conflict="id_moodle").execute()
                     status_log = "[ENTREGADA]" if is_delivered else "[PENDIENTE]"
                     print(f"Task synced {status_log}: {title} | Materia: {materia}")
                 
