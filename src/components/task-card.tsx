@@ -136,26 +136,26 @@ export function TaskCard({ task, showChecklist = false }: { task: Task, showChec
         className="group cursor-grab active:cursor-grabbing"
       >
         <Card className="glass-card overflow-hidden">
-        <CardHeader className="p-4 pb-2">
-          <div className="flex justify-between items-start">
-            <Badge variant="outline" className="text-[10px] uppercase tracking-wider font-semibold opacity-70">
+        <CardHeader className="p-3 sm:p-4 pb-2">
+          <div className="flex justify-between items-start gap-2">
+            <Badge variant="outline" className="text-[9px] sm:text-[10px] uppercase tracking-wider font-semibold opacity-70 truncate px-1.5 py-0">
               {task.materia}
             </Badge>
-            <div className={`text-[10px] px-2 py-0.5 rounded-full border ${statusColors[task.estado as keyof typeof statusColors]}`}>
+            <div className={`text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full border shrink-0 ${statusColors[task.estado as keyof typeof statusColors]}`}>
               {task.estado.replace('_', ' ')}
             </div>
           </div>
-          <CardTitle className="text-base font-bold mt-2 group-hover:text-primary transition-colors">
+          <CardTitle className="text-sm sm:text-base font-bold mt-2 group-hover:text-primary transition-colors line-clamp-2 leading-tight">
             {task.titulo}
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-4 pt-0">
-          <p className="text-xs text-muted-foreground line-clamp-2 mb-4">
+        <CardContent className="p-3 sm:p-4 pt-0">
+          <p className="text-[11px] sm:text-xs text-muted-foreground line-clamp-2 mb-3 sm:mb-4">
             {task.descripcion || 'Sin descripción adicional.'}
           </p>
-          <div className="flex items-center gap-4 text-[11px] font-medium border-b border-border/50 pb-3 mb-3">
+          <div className="flex items-center gap-3 sm:gap-4 text-[10px] sm:text-[11px] font-medium border-b border-border/50 pb-3 mb-3">
             <div className="flex items-center gap-1.5 text-muted-foreground">
-              <Calendar className="w-3.5 h-3.5" />
+              <Calendar className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
               <span>{task.fecha_entrega ? format(new Date(task.fecha_entrega), 'd MMM', { locale: es }) : 'Sin fecha'}</span>
             </div>
             

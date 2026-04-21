@@ -31,17 +31,17 @@ const HOURS = ["17:00", "19:00"];
 
 export function ClassSchedule() {
   return (
-    <div className="w-full bg-background rounded-3xl border shadow-sm p-6 md:p-8 overflow-hidden relative">
+    <div className="w-full bg-background rounded-3xl border shadow-sm p-4 sm:p-6 md:p-8 overflow-hidden relative">
       {/* Decorative background element */}
       <div className="absolute top-0 right-0 -m-20 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
       
-      <div className="flex items-center gap-3 mb-8">
-        <div className="p-3 bg-primary/10 rounded-xl">
-          <Clock className="w-6 h-6 text-primary" />
+      <div className="flex items-center gap-3 mb-6 sm:mb-8">
+        <div className="p-2.5 sm:p-3 bg-primary/10 rounded-xl">
+          <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Mi Horario de Clases</h2>
-          <p className="text-sm text-muted-foreground">Accede a tus clases rápidamente desde un solo lugar</p>
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Mi Horario</h2>
+          <p className="text-xs sm:text-sm text-muted-foreground">Clases y enlaces rápidos</p>
         </div>
       </div>
 

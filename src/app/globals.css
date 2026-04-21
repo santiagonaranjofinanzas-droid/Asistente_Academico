@@ -129,3 +129,13 @@
 .glass-card:hover {
   @apply bg-card/80 border-border/80 shadow-md transform -translate-y-0.5;
 }
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}

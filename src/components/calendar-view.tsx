@@ -66,7 +66,7 @@ export function CalendarView({ tasks, onFocusTask }: { tasks: any[], onFocusTask
       </div>
 
       {/* Grid Header (Days of week) */}
-      <div className="grid grid-cols-7 gap-4">
+      <div className="grid grid-cols-7 gap-1 sm:gap-4">
         {weekDays.map(day => (
           <div key={day} className="text-center text-xs font-bold uppercase tracking-wider text-muted-foreground/70 pb-2 border-b border-border/50">
             {day}
@@ -117,27 +117,29 @@ export function CalendarView({ tasks, onFocusTask }: { tasks: any[], onFocusTask
                 <div
                   key={day.toString()}
                   onClick={() => { if (total > 0) setSelectedDay(day); }}
-                  className={`min-h-[100px] p-3 rounded-xl border transition-all duration-300 relative flex flex-col items-center justify-center gap-1
+                  className={`min-h-[60px] sm:min-h-[100px] p-1 sm:p-3 rounded-lg sm:rounded-xl border transition-all duration-300 relative flex flex-col items-center justify-center gap-0.5 sm:gap-1
                     ${heatmapColor}
                     ${total > 0 ? 'cursor-pointer hover:shadow-md hover:scale-[1.02]' : ''}
-                    ${isCurrentDay ? 'ring-2 ring-primary ring-opacity-100 ring-offset-2 ring-offset-background' : ''}
+                    ${isCurrentDay ? 'ring-1 sm:ring-2 ring-primary ring-opacity-100 ring-offset-1 sm:ring-offset-2 ring-offset-background' : ''}
                   `}
                 >
-                  <span className={`text-lg transition-colors ${textColor}`}>
+                  <span className={`text-base sm:text-lg transition-colors ${textColor}`}>
                     {format(day, 'd')}
                   </span>
                   
                   {total > 0 && (
-                    <div className="flex flex-col items-center mt-1">
-                      <span className={`text-[10px] uppercase tracking-wider opacity-80 ${textColor}`}>
+                    <div className="flex flex-col items-center mt-0.5 sm:mt-1">
+                      <span className={`text-[8px] sm:text-[10px] uppercase tracking-wider opacity-80 ${textColor}`}>
                         {completed}/{total}
                       </span>
-                      <div className="w-full bg-background/50 h-1 mt-1.5 rounded-full overflow-hidden">
+                      <div className="w-full bg-background/50 h-0.5 sm:h-1 mt-1 rounded-full overflow-hidden hidden sm:block">
                         <div 
                           className="h-full bg-current transition-all"
                           style={{ width: `${(completed / total) * 100}%` }}
                         />
                       </div>
+                      {/* Mobile dot indicator */}
+                      <div className="sm:hidden w-1 h-1 rounded-full bg-current mt-0.5" />
                     </div>
                   )}
                 </div>
@@ -149,7 +151,7 @@ export function CalendarView({ tasks, onFocusTask }: { tasks: any[], onFocusTask
 
       {/* Day Details Modal / Sheet */}
       <Sheet open={selectedDay !== null} onOpenChange={(open) => !open && setSelectedDay(null)}>
-        <SheetContent side="right" className="w-[400px] sm:w-[540px] overflow-y-auto">
+        <SheetContent side="right" className="w-[100%] sm:w-[540px] overflow-y-auto">
           <SheetHeader className="mb-6">
             <SheetTitle className="capitalize text-2xl flex items-center gap-2">
               {selectedDay ? format(selectedDay, 'EEEE d, MMMM', { locale: es }) : ''}

@@ -144,7 +144,7 @@ export default function Dashboard() {
   };
 
   return (
-    <main className="min-h-screen bg-background p-6 md:p-12">
+    <main className="min-h-screen bg-background p-4 md:p-12">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
@@ -159,8 +159,8 @@ export default function Dashboard() {
           </div>
 
           {/* Automation Control Panel */}
-          <div className="flex items-center gap-4 px-4 py-2 bg-muted/30 rounded-2xl border border-border/50 shadow-sm backdrop-blur-sm">
-            <div className="flex flex-col items-end">
+          <div className="flex flex-col sm:flex-row items-center gap-4 px-4 py-2 bg-muted/30 rounded-2xl border border-border/50 shadow-sm backdrop-blur-sm w-full md:w-auto">
+            <div className="flex flex-col items-center sm:items-end w-full sm:w-auto">
               <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground/60 mb-0.5">Estado del Sistema</span>
               <div className="flex items-center gap-2">
                 <div className={`w-2 h-2 rounded-full animate-pulse ${automationConfig.automatizacion_activa ? 'bg-green-500' : 'bg-red-500'}`} />
@@ -169,19 +169,19 @@ export default function Dashboard() {
                 </span>
                 {automationConfig.ultima_ejecucion_scraper && (
                   <span className="text-[10px] text-muted-foreground/50 font-medium ml-1">
-                    • Sincronizado: {new Date(automationConfig.ultima_ejecucion_scraper).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    • {new Date(automationConfig.ultima_ejecucion_scraper).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 )}
               </div>
             </div>
             
-            <div className="w-px h-8 bg-border/40 mx-1"></div>
+            <div className="hidden sm:block w-px h-8 bg-border/40 mx-1"></div>
             
             <Button
               variant={automationConfig.automatizacion_activa ? "destructive" : "default"}
               size="sm"
               onClick={toggleAutomation}
-              className={`h-9 px-4 rounded-xl font-bold text-xs gap-2 transition-all duration-300 shadow-lg ${
+              className={`h-9 px-4 rounded-xl font-bold text-xs gap-2 transition-all duration-300 shadow-lg w-full sm:w-auto ${
                 automationConfig.automatizacion_activa 
                 ? 'bg-red-500/10 hover:bg-red-500 text-red-600 hover:text-white border-red-500/20' 
                 : 'bg-green-500/10 hover:bg-green-500 text-green-600 hover:text-white border-green-500/20'
@@ -201,54 +201,56 @@ export default function Dashboard() {
             </Button>
           </div>
 
-          <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-lg border">
-            <Button
-              variant={view === 'kanban' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setView('kanban')}
-              className="h-8 px-3"
-            >
-              <LayoutGrid className="w-4 h-4 mr-2" />
-              Tablero
-            </Button>
-            <Button
-              variant={view === 'list' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setView('list')}
-              className="h-8 px-3"
-            >
-              <List className="w-4 h-4 mr-2" />
-              Lista
-            </Button>
-            <Button
-              variant={view === 'calendar' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setView('calendar')}
-              className="h-8 px-3"
-            >
-              <CalendarDays className="w-4 h-4 mr-2" />
-              Calendario
-            </Button>
-            <Button
-              variant={view === 'schedule' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setView('schedule')}
-              className="h-8 px-3 text-primary font-medium"
-            >
-              <Clock className="w-4 h-4 mr-2" />
-              Horario
-            </Button>
-            <Button
-              variant={view === 'archived' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setView('archived')}
-              className="h-8 px-3"
-            >
-              <Archive className="w-4 h-4 mr-2" />
-              Archivados
-            </Button>
-            <div className="w-px h-4 bg-border mx-1"></div>
-            <ThemeToggle />
+          <div className="w-full overflow-x-auto no-scrollbar pb-1">
+            <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-lg border w-fit min-w-full sm:min-w-0">
+              <Button
+                variant={view === 'kanban' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setView('kanban')}
+                className="h-8 px-3 shrink-0"
+              >
+                <LayoutGrid className="w-4 h-4 mr-2" />
+                Tablero
+              </Button>
+              <Button
+                variant={view === 'list' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setView('list')}
+                className="h-8 px-3 shrink-0"
+              >
+                <List className="w-4 h-4 mr-2" />
+                Lista
+              </Button>
+              <Button
+                variant={view === 'calendar' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setView('calendar')}
+                className="h-8 px-3 shrink-0"
+              >
+                <CalendarDays className="w-4 h-4 mr-2" />
+                Calendario
+              </Button>
+              <Button
+                variant={view === 'schedule' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setView('schedule')}
+                className="h-8 px-3 text-primary font-medium shrink-0"
+              >
+                <Clock className="w-4 h-4 mr-2" />
+                Horario
+              </Button>
+              <Button
+                variant={view === 'archived' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setView('archived')}
+                className="h-8 px-3 shrink-0"
+              >
+                <Archive className="w-4 h-4 mr-2" />
+                Archivados
+              </Button>
+              <div className="w-px h-4 bg-border mx-1 shrink-0"></div>
+              <ThemeToggle />
+            </div>
           </div>
         </header>
 

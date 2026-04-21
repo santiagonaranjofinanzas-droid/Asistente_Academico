@@ -36,44 +36,44 @@ export function AnalyticsHeader({ tasks }: { tasks: any[] }) {
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-      <Card className="p-4 glass-card flex items-center gap-4">
-        <div className="p-3 bg-primary/10 rounded-full text-primary">
-          <Target className="w-5 h-5" />
+      <Card className="p-3 sm:p-4 glass-card flex items-center gap-3 sm:gap-4">
+        <div className="p-2 sm:p-3 bg-primary/10 rounded-full text-primary shrink-0">
+          <Target className="w-4 h-4 sm:w-5 sm:h-5" />
         </div>
         <div className="overflow-hidden">
-          <p className="text-sm text-muted-foreground font-medium truncate">Tareas Activas</p>
-          <h3 className="text-2xl font-bold">{activeTasks}</h3>
+          <p className="text-[10px] sm:text-sm text-muted-foreground font-medium truncate uppercase tracking-wider sm:normal-case sm:tracking-normal">Tareas</p>
+          <h3 className="text-xl sm:text-2xl font-bold leading-tight">{activeTasks}</h3>
         </div>
       </Card>
 
-      <Card className="p-4 glass-card flex items-center gap-4">
-        <div className="p-3 bg-purple-500/10 rounded-full text-purple-500">
-          <CheckCircle className="w-5 h-5" />
+      <Card className="p-3 sm:p-4 glass-card flex items-center gap-3 sm:gap-4">
+        <div className="p-2 sm:p-3 bg-purple-500/10 rounded-full text-purple-500 shrink-0">
+          <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
         </div>
         <div className="overflow-hidden w-full">
-          <p className="text-sm text-muted-foreground font-medium truncate">Foco Principal</p>
-          <h3 className="text-base font-bold truncate mt-1" title={maxMateria}>{maxMateria}</h3>
-          <span className="text-[10px] text-muted-foreground">{maxCount} tareas pendientes</span>
+          <p className="text-[10px] sm:text-sm text-muted-foreground font-medium truncate uppercase tracking-wider sm:normal-case sm:tracking-normal">Foco</p>
+          <h3 className="text-xs sm:text-base font-bold truncate mt-0.5 sm:mt-1" title={maxMateria}>{maxMateria}</h3>
+          <span className="hidden sm:inline text-[10px] text-muted-foreground">{maxCount} tareas pendientes</span>
         </div>
       </Card>
 
-      <Card className="p-4 glass-card flex items-center gap-4">
-        <div className="p-3 bg-blue-500/10 rounded-full text-blue-500">
-          <CalendarDays className="w-5 h-5" />
+      <Card className="p-3 sm:p-4 glass-card flex items-center gap-3 sm:gap-4">
+        <div className="p-2 sm:p-3 bg-blue-500/10 rounded-full text-blue-500 shrink-0">
+          <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5" />
         </div>
         <div className="overflow-hidden">
-          <p className="text-sm text-muted-foreground font-medium truncate">Próximos 7 días</p>
-          <h3 className="text-2xl font-bold">{proximas}</h3>
+          <p className="text-[10px] sm:text-sm text-muted-foreground font-medium truncate uppercase tracking-wider sm:normal-case sm:tracking-normal">Semana</p>
+          <h3 className="text-xl sm:text-2xl font-bold leading-tight">{proximas}</h3>
         </div>
       </Card>
 
-      <Card className="p-4 glass-card flex items-center gap-4">
-        <div className={`p-3 rounded-full ${vencidas > 0 ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'}`}>
-          <Clock className="w-5 h-5" />
+      <Card className="p-3 sm:p-4 glass-card flex items-center gap-3 sm:gap-4">
+        <div className={`p-2 sm:p-3 rounded-full shrink-0 ${vencidas > 0 ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'}`}>
+          <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
         </div>
         <div className="overflow-hidden">
-          <p className="text-sm text-muted-foreground font-medium truncate">Vencidas</p>
-          <h3 className={`text-2xl font-bold ${vencidas > 0 ? 'text-destructive' : ''}`}>{vencidas}</h3>
+          <p className="text-[10px] sm:text-sm text-muted-foreground font-medium truncate uppercase tracking-wider sm:normal-case sm:tracking-normal">Vencidas</p>
+          <h3 className={`text-xl sm:text-2xl font-bold leading-tight ${vencidas > 0 ? 'text-destructive' : ''}`}>{vencidas}</h3>
         </div>
       </Card>
     </div>
