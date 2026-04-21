@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     // Update or insert config row
     const { data, error } = await supabase
       .from('sistema_config')
-      .upsert({ id: 1, ...body }, { on_conflict: 'id' })
+      .upsert({ id: 1, ...body }, { onConflict: 'id' })
       .select()
       .single();
 
