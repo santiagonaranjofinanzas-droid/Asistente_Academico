@@ -10,14 +10,23 @@ import { ClassSchedule } from '@/components/class-schedule';
 import { Archive, LayoutGrid, List, Sparkles, CalendarDays, Clock } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Power, PowerOff, ShieldCheck, ShieldAlert, RotateCw } from 'lucide-react';
 
 export default function Dashboard() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [view, setView] = useState<'kanban' | 'list' | 'calendar' | 'schedule' | 'archived'>('kanban');
   const [loading, setLoading] = useState(true);
+  
+  // Automation State
+  const [automationConfig, setAutomationConfig] = useState<any>({
+    automatizacion_activa: true,
+    ultima_ejecucion_scraper: null,
+    intervalo_horas: 3
+  });
 
   useEffect(() => {
     fetchTasks();
+    fetchAutomationConfig();
 
     // Subscribe to Realtime changes
     const channel = supabase
@@ -65,6 +74,35 @@ export default function Dashboard() {
     setLoading(false);
   }
 
+  async function fetchAutomationConfig() {
+    try {
+      const res = await fetch('/api/automation');
+      const data = await res.json();
+      setAutomationConfig(data);
+    } catch (error) {
+      console.error('Error fetching automation config:', error);
+    }
+  }
+
+  const toggleAutomation = async () => {
+    const newState = !automationConfig.automatizacion_activa;
+    // Optimistic
+    setAutomationConfig({ ...automationConfig, automatizacion_activa: newState });
+    
+    try {
+      const res = await fetch('/api/automation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ automatizacion_activa: newState })
+      });
+      const data = await res.json();
+      setAutomationConfig(data);
+    } catch (error) {
+      console.error('Error toggling automation:', error);
+      fetchAutomationConfig(); // revert
+    }
+  };
+
   // Reload tasks when view changes to archived/back
   useEffect(() => {
     fetchTasks();
@@ -109,8 +147,8 @@ export default function Dashboard() {
     <main className="min-h-screen bg-background p-6 md:p-12">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-12">
-          <div>
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
+          <div className="flex-1">
             <h1 className="text-3xl font-bold tracking-tight mb-1 flex items-center gap-2">
               <Sparkles className="w-6 h-6 text-primary" />
               Asistente Académico
@@ -118,6 +156,49 @@ export default function Dashboard() {
             <p className="text-muted-foreground text-sm font-medium">
               Gestión inteligente de tareas y recursos universitarios.
             </p>
+          </div>
+
+          {/* Automation Control Panel */}
+          <div className="flex items-center gap-4 px-4 py-2 bg-muted/30 rounded-2xl border border-border/50 shadow-sm backdrop-blur-sm">
+            <div className="flex flex-col items-end">
+              <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground/60 mb-0.5">Estado del Sistema</span>
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full animate-pulse ${automationConfig.automatizacion_activa ? 'bg-green-500' : 'bg-red-500'}`} />
+                <span className={`text-[11px] font-bold ${automationConfig.automatizacion_activa ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                  {automationConfig.automatizacion_activa ? 'AUTORUN ACTIVO' : 'PAUSADO'}
+                </span>
+                {automationConfig.ultima_ejecucion_scraper && (
+                  <span className="text-[10px] text-muted-foreground/50 font-medium ml-1">
+                    • Sincronizado: {new Date(automationConfig.ultima_ejecucion_scraper).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+              </div>
+            </div>
+            
+            <div className="w-px h-8 bg-border/40 mx-1"></div>
+            
+            <Button
+              variant={automationConfig.automatizacion_activa ? "destructive" : "default"}
+              size="sm"
+              onClick={toggleAutomation}
+              className={`h-9 px-4 rounded-xl font-bold text-xs gap-2 transition-all duration-300 shadow-lg ${
+                automationConfig.automatizacion_activa 
+                ? 'bg-red-500/10 hover:bg-red-500 text-red-600 hover:text-white border-red-500/20' 
+                : 'bg-green-500/10 hover:bg-green-500 text-green-600 hover:text-white border-green-500/20'
+              }`}
+            >
+              {automationConfig.automatizacion_activa ? (
+                <>
+                  <PowerOff className="w-3.5 h-3.5" />
+                  PARADA DE EMERGENCIA
+                </>
+              ) : (
+                <>
+                  <Power className="w-3.5 h-3.5" />
+                  REANUDAR SISTEMA
+                </>
+              )}
+            </Button>
           </div>
 
           <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-lg border">
