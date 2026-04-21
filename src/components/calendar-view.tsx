@@ -165,6 +165,7 @@ export function CalendarView({ tasks, onFocusTask }: { tasks: any[], onFocusTask
                <TaskCard 
                  key={task.id} 
                  task={task} 
+                 showChecklist={true}
                />
             ))}
           </div>

@@ -329,7 +329,7 @@ export default function Dashboard() {
                   
                   <div className="space-y-4">
                     {tasks.filter((t) => t.estado === col).map((task) => (
-                      <TaskCard key={task.id} task={task} />
+                      <TaskCard key={task.id} task={task} showChecklist={true} />
                     ))}
                     {tasks.filter((t) => t.estado === col).length === 0 && (
                       <div className="border border-dashed border-border/50 rounded-xl h-24 flex items-center justify-center text-muted-foreground/40 text-xs font-medium">
