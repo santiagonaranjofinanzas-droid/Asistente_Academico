@@ -86,7 +86,7 @@ export function TaskCard({ task, showChecklist = false }: { task: Task, showChec
       item.id === itemId ? { ...item, completed: !item.completed } : item
     );
 
-    const wasCompleted = updatedChecklist.find(i => i.id === itemId)?.completed;
+    const wasCompleted = updatedChecklist.find((i: any) => i.id === itemId)?.completed;
     
     let updatedEstado = task.estado;
     // Auto move to "en_proceso" if a check is marked and it was "por_empezar"
@@ -290,12 +290,12 @@ export function TaskCard({ task, showChecklist = false }: { task: Task, showChec
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-semibold flex items-center gap-1.5">
                   <CheckCircle className="w-3 h-3" />
-                  Checklist ({checklist.filter(i => i.completed).length}/{checklist.length})
+                  Checklist ({checklist.filter((i: any) => i.completed).length}/{checklist.length})
                 </span>
               </div>
 
               <div className="space-y-2">
-                {checklist.map((item) => (
+                {checklist.map((item: any) => (
                   <div key={item.id} className="flex items-center gap-2 group/item">
                     <Checkbox 
                       id={item.id} 

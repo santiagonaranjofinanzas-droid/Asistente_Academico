@@ -182,7 +182,7 @@ export function CalendarView({ tasks, onFocusTask }: { tasks: any[], onFocusTask
             </SheetDescription>
           </SheetHeader>
           <div className="space-y-4 pb-12">
-             {selectedDayTasks.map(task => (
+             {selectedDayTasks.map((task: any) => (
                <TaskCard 
                  key={task.id} 
                  task={task} 

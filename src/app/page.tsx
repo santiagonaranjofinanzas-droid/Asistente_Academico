@@ -277,7 +277,7 @@ export default function Dashboard() {
               { label: 'Domingo', index: 0 },
               { label: 'Sin fecha', index: -1 }
             ].map((day) => {
-              const dayTasks = tasks.filter((t) => {
+              const dayTasks = tasks.filter((t: any) => {
                 if (!t.fecha_entrega) return day.index === -1;
                 const d = new Date(t.fecha_entrega);
                 // getDay() returns 0 for Sunday, 1 for Monday...
@@ -300,7 +300,7 @@ export default function Dashboard() {
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {dayTasks.map((task) => (
+                    {dayTasks.map((task: any) => (
                       <TaskCard key={task.id} task={task} showChecklist={true} />
                     ))}
                   </div>
@@ -311,7 +311,7 @@ export default function Dashboard() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
             <AnimatePresence mode="popLayout">
-              {columns.map((col) => (
+              {columns.map((col: string) => (
                 <section 
                   key={col} 
                   className={`space-y-6 p-4 rounded-2xl border transition-colors duration-200 min-h-[500px] ${getColColor(col)}`}
@@ -323,15 +323,15 @@ export default function Dashboard() {
                       {col.replace('_', ' ')}
                     </h2>
                     <span className="text-[10px] font-bold px-2 py-0.5 bg-background rounded-full border shadow-sm">
-                      {tasks.filter((t) => t.estado === col).length}
+                      {tasks.filter((t: any) => t.estado === col).length}
                     </span>
                   </div>
                   
                   <div className="space-y-4">
-                    {tasks.filter((t) => t.estado === col).map((task) => (
+                    {tasks.filter((t: any) => t.estado === col).map((task: any) => (
                       <TaskCard key={task.id} task={task} showChecklist={true} />
                     ))}
-                    {tasks.filter((t) => t.estado === col).length === 0 && (
+                    {tasks.filter((t: any) => t.estado === col).length === 0 && (
                       <div className="border border-dashed border-border/50 rounded-xl h-24 flex items-center justify-center text-muted-foreground/40 text-xs font-medium">
                         Arrastra tareas aquí
                       </div>
