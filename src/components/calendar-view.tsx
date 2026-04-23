@@ -90,8 +90,28 @@ export function CalendarView({ tasks, onFocusTask }: { tasks: any[], onFocusTask
               const isCurrentDay = isToday(day);
 
               const total = dayTasks.length;
-              const completed = dayTasks.filter(t => t.estado === 'entregada' || t.estado === 'lista').length;
-              const overdue = dayTasks.filter(t => (t.estado === 'por_empezar' || t.estado === 'en_proceso') && t.fecha_entrega && isPast(new Date(t.fecha_entrega)) && !isToday(new Date(t.fecha_entrega))).length;
+              
+              const isReadyToSubmit = (t: any) => {
+                if (t.estado === 'entregada' || t.estado === 'lista') return false;
+                let cl = t.checklist;
+                if (!cl) return false;
+                if (typeof cl === 'string') {
+                  try { cl = JSON.parse(cl); } catch { return false; }
+                }
+                if (!Array.isArray(cl)) return false;
+                
+                const uncompleted = cl.filter((item: any) => !item.completed);
+                if (uncompleted.length === 1) {
+                  const text = uncompleted[0].text.trim().toLowerCase();
+                  const keywords = ['enviar', 'subir', 'entregar', 'subir trabajo', 'subir tarea', 'finalizar'];
+                  return keywords.some(kw => text.includes(kw));
+                }
+                return false;
+              };
+
+              const completed = dayTasks.filter(t => t.estado === 'entregada' || t.estado === 'lista' || isReadyToSubmit(t)).length;
+              const isOnlyReady = dayTasks.every(t => t.estado === 'entregada' || t.estado === 'lista' || isReadyToSubmit(t)) && dayTasks.some(t => isReadyToSubmit(t));
+              const overdue = dayTasks.filter(t => (t.estado === 'por_empezar' || t.estado === 'en_proceso') && !isReadyToSubmit(t) && t.fecha_entrega && isPast(new Date(t.fecha_entrega)) && !isToday(new Date(t.fecha_entrega))).length;
 
               // TradeZella Heatmap coloration logic
               let heatmapColor = isCurrentMonth ? 'bg-card/40 border-border/50' : 'bg-transparent border-transparent opacity-40';
@@ -102,8 +122,9 @@ export function CalendarView({ tasks, onFocusTask }: { tasks: any[], onFocusTask
                   heatmapColor = 'bg-red-500/15 border-red-500/30 hover:bg-red-500/25';
                   textColor = 'text-red-500 font-bold';
                 } else if (completed === total) {
-                  heatmapColor = 'bg-green-500/15 border-green-500/30 hover:bg-green-500/25';
-                  textColor = 'text-green-500 font-bold';
+                  // If all are completed OR ready to submit, use a slightly different green if some are just "Ready"
+                  heatmapColor = isOnlyReady ? 'bg-emerald-400/20 border-emerald-400/40 hover:bg-emerald-400/30' : 'bg-green-500/15 border-green-500/30 hover:bg-green-500/25';
+                  textColor = isOnlyReady ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-green-500 font-bold';
                 } else if (completed > 0) {
                   heatmapColor = 'bg-yellow-500/15 border-yellow-500/30 hover:bg-yellow-500/25';
                   textColor = 'text-yellow-600 dark:text-yellow-400 font-bold';

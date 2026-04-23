@@ -47,7 +47,15 @@ export function TaskCard({ task, showChecklist = false }: { task: Task, showChec
   // Initialize checklist from task or empty array
   const checklist = useMemo(() => {
     if (!task.checklist) return [];
-    return Array.isArray(task.checklist) ? task.checklist : [];
+    if (Array.isArray(task.checklist)) return task.checklist;
+    if (typeof task.checklist === 'string') {
+      try {
+        return JSON.parse(task.checklist);
+      } catch {
+        return [];
+      }
+    }
+    return [];
   }, [task.checklist]);
 
   const handleAddItem = async (e: React.FormEvent) => {
@@ -121,6 +129,19 @@ export function TaskCard({ task, showChecklist = false }: { task: Task, showChec
   const hasSummary = !!task.resumen_ia;
   const hasExtractedText = !!task.texto_extraido && task.texto_extraido.trim().length > 0;
 
+  const isReadyToSubmit = useMemo(() => {
+    if (task.estado === 'entregada' || task.estado === 'lista') return false;
+    if (!checklist || checklist.length === 0) return false;
+    
+    const uncompleted = checklist.filter(item => !item.completed);
+    if (uncompleted.length === 1) {
+      const text = uncompleted[0].text.trim().toLowerCase();
+      const keywords = ['enviar', 'subir', 'entregar', 'subir trabajo', 'subir tarea', 'finalizar'];
+      return keywords.some(kw => text.includes(kw));
+    }
+    return false;
+  }, [checklist, task.estado]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -133,14 +154,21 @@ export function TaskCard({ task, showChecklist = false }: { task: Task, showChec
         onDragStart={(e: React.DragEvent) => {
           e.dataTransfer.setData('taskId', task.id);
         }}
-        className="group cursor-grab active:cursor-grabbing"
+        className="group cursor-grab active:cursor-grabbing h-full"
       >
-        <Card className="glass-card overflow-hidden">
+        <Card className={`glass-card overflow-hidden transition-all duration-500 h-full ${isReadyToSubmit ? '!bg-emerald-500/20 border-emerald-500/40 dark:!bg-emerald-500/10' : ''}`}>
         <CardHeader className="p-3 sm:p-4 pb-2">
           <div className="flex justify-between items-start gap-2">
-            <Badge variant="outline" className="text-[9px] sm:text-[10px] uppercase tracking-wider font-semibold opacity-70 truncate px-1.5 py-0">
-              {task.materia}
-            </Badge>
+            <div className="flex flex-col gap-1">
+              <Badge variant="outline" className="text-[9px] sm:text-[10px] uppercase tracking-wider font-semibold opacity-70 truncate px-1.5 py-0 w-fit">
+                {task.materia}
+              </Badge>
+              {isReadyToSubmit && (
+                <Badge className="bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[8px] uppercase py-0 px-1.5 animate-pulse">
+                  Listo para enviar
+                </Badge>
+              )}
+            </div>
             <div className={`text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full border shrink-0 ${statusColors[task.estado as keyof typeof statusColors]}`}>
               {task.estado.replace('_', ' ')}
             </div>

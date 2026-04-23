@@ -58,6 +58,14 @@ async def check_deadlines():
             task_notifs["24h"] = True
             print(f"Sent 24h alert for {task_id}")
             
+        # 15 Minute Warning for Exams/Controls
+        is_exam = any(kw in titulo.lower() for kw in ["prueba", "examen", "control de lectura"])
+        if is_exam and 0 < hours_left <= 0.26 and not task_notifs.get("15m"): # 0.26h is ~15.6 mins
+            msg = f"📚 *RECORDATORIO PRÓXIMO*: Tienes un *{titulo}* de {materia} en 15 minutos. ¡Prepárate!"
+            await send_notification(msg)
+            task_notifs["15m"] = True
+            print(f"Sent 15m alert for {task_id}")
+            
         # 2 Hour Warning (Critical)
         elif 0 < hours_left < 2 and not task_notifs.get("2h"):
             msg = f"🚨 *CRÍTICO*: '{titulo}' de {materia} vence en menos de 2 horas. Entrégalo YA."
@@ -77,8 +85,8 @@ async def main_loop():
         except Exception as e:
             print(f"Error checking deadlines: {e}")
             
-        # Sleep for 30 minutes
-        await asyncio.sleep(1800)
+        # Sleep for 1 minute
+        await asyncio.sleep(60)
 
 if __name__ == "__main__":
     asyncio.run(main_loop())
