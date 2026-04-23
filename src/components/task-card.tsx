@@ -82,7 +82,7 @@ export function TaskCard({ task, showChecklist = false }: { task: Task, showChec
   };
 
   const handleToggleItem = async (itemId: string) => {
-    const updatedChecklist = checklist.map(item => 
+    const updatedChecklist = checklist.map((item: any) => 
       item.id === itemId ? { ...item, completed: !item.completed } : item
     );
 
@@ -104,7 +104,7 @@ export function TaskCard({ task, showChecklist = false }: { task: Task, showChec
   };
 
   const handleDeleteItem = async (itemId: string) => {
-    const updatedChecklist = checklist.filter(item => item.id !== itemId);
+    const updatedChecklist = checklist.filter((item: any) => item.id !== itemId);
     
     await supabase
       .from('tareas')
@@ -133,7 +133,7 @@ export function TaskCard({ task, showChecklist = false }: { task: Task, showChec
     if (task.estado === 'entregada' || task.estado === 'lista') return false;
     if (!checklist || checklist.length === 0) return false;
     
-    const uncompleted = checklist.filter(item => !item.completed);
+    const uncompleted = checklist.filter((item: any) => !item.completed);
     if (uncompleted.length === 1) {
       const text = uncompleted[0].text.trim().toLowerCase();
       const keywords = ['enviar', 'subir', 'entregar', 'subir trabajo', 'subir tarea', 'finalizar'];

@@ -109,9 +109,9 @@ export function CalendarView({ tasks, onFocusTask }: { tasks: any[], onFocusTask
                 return false;
               };
 
-              const completed = dayTasks.filter(t => t.estado === 'entregada' || t.estado === 'lista' || isReadyToSubmit(t)).length;
-              const isOnlyReady = dayTasks.every(t => t.estado === 'entregada' || t.estado === 'lista' || isReadyToSubmit(t)) && dayTasks.some(t => isReadyToSubmit(t));
-              const overdue = dayTasks.filter(t => (t.estado === 'por_empezar' || t.estado === 'en_proceso') && !isReadyToSubmit(t) && t.fecha_entrega && isPast(new Date(t.fecha_entrega)) && !isToday(new Date(t.fecha_entrega))).length;
+              const completed = dayTasks.filter((t: any) => t.estado === 'entregada' || t.estado === 'lista' || isReadyToSubmit(t)).length;
+              const isOnlyReady = dayTasks.every((t: any) => t.estado === 'entregada' || t.estado === 'lista' || isReadyToSubmit(t)) && dayTasks.some((t: any) => isReadyToSubmit(t));
+              const overdue = dayTasks.filter((t: any) => (t.estado === 'por_empezar' || t.estado === 'en_proceso') && !isReadyToSubmit(t) && t.fecha_entrega && isPast(new Date(t.fecha_entrega)) && !isToday(new Date(t.fecha_entrega))).length;
 
               // TradeZella Heatmap coloration logic
               let heatmapColor = isCurrentMonth ? 'bg-card/40 border-border/50' : 'bg-transparent border-transparent opacity-40';
