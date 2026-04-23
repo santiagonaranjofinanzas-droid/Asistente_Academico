@@ -134,19 +134,14 @@ async def run_scraper():
 
             # --- FORCE "ALL" FILTER ---
             try:
+                dropdown = await page.query_selector('[data-action="timeline-filter-dropdown"]')
+                if dropdown:
+                    await dropdown.click(force=True, timeout=5000)
+                    await page.wait_for_timeout(500)
                 all_filter = await page.query_selector('[data-filtername="all"]')
                 if all_filter:
-                    await all_filter.click()
+                    await all_filter.click(force=True, timeout=5000)
                     await page.wait_for_timeout(2000)
-                else:
-                    dropdown = await page.query_selector('[data-action="timeline-filter-dropdown"]')
-                    if dropdown:
-                        await dropdown.click()
-                        await page.wait_for_timeout(500)
-                        all_filter_alt = await page.query_selector('[data-filtername="all"]')
-                        if all_filter_alt:
-                            await all_filter_alt.click()
-                            await page.wait_for_timeout(2000)
             except Exception as e:
                 print(f"[SCRAPER] Filter audit skipped: {e}")
 

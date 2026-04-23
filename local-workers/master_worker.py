@@ -105,7 +105,11 @@ def main():
                 run_scraper = True
             else:
                 last_time = datetime.datetime.fromisoformat(ultima)
-                diff = datetime.datetime.now() - last_time
+                if last_time.tzinfo is not None:
+                    now = datetime.datetime.now(last_time.tzinfo)
+                else:
+                    now = datetime.datetime.now()
+                diff = now - last_time
                 if diff.total_seconds() >= (config.get("intervalo_horas", 3) * 3600):
                     run_scraper = True
             
@@ -114,7 +118,7 @@ def main():
                 run_script("uni_scraper.py", wait=True)
                 
                 # Update config
-                config["ultima_ejecucion_scraper"] = datetime.datetime.now().isoformat()
+                config["ultima_ejecucion_scraper"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
                 save_config(config)
                 print(f"[{datetime.datetime.now()}] Scraper finalizado. Próxima ejecución en {config.get('intervalo_horas', 3)} horas.")
             
