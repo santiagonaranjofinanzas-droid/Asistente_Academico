@@ -1,21 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { TaskCard } from '@/components/task-card';
 import { Button } from '@/components/ui/button';
 import { AnalyticsHeader } from '@/components/analytics-header';
 import { CalendarView } from '@/components/calendar-view';
 import { ClassSchedule } from '@/components/class-schedule';
-import { Archive, LayoutGrid, List, Sparkles, CalendarDays, Clock } from 'lucide-react';
+import { Archive, LayoutGrid, List, Sparkles, CalendarDays, Clock, Zap } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Power, PowerOff, ShieldCheck, ShieldAlert, RotateCw } from 'lucide-react';
+import { Power, PowerOff } from 'lucide-react';
 
 export default function Dashboard() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [view, setView] = useState<'kanban' | 'list' | 'calendar' | 'schedule' | 'archived'>('kanban');
   const [loading, setLoading] = useState(true);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   
   // Automation State
   const [automationConfig, setAutomationConfig] = useState<any>({
@@ -112,6 +113,7 @@ export default function Dashboard() {
 
   const handleDrop = async (e: React.DragEvent<HTMLElement>, newEstado: string) => {
     e.preventDefault();
+    setDragOverCol(null);
     const taskId = e.dataTransfer.getData('taskId');
     if (!taskId) return;
 
@@ -136,239 +138,301 @@ export default function Dashboard() {
     }
   };
 
-  const getColColor = (col: string) => {
-    if (col === 'por_empezar') return 'bg-slate-500/5 hover:bg-slate-500/10 border-slate-500/10';
-    if (col === 'en_proceso') return 'bg-blue-500/5 hover:bg-blue-500/10 border-blue-500/10';
-    if (col === 'lista') return 'bg-green-500/5 hover:bg-green-500/10 border-green-500/10';
-    return 'bg-muted/30';
+  // Progress calculation
+  const progress = useMemo(() => {
+    const completed = tasks.filter(t => t.estado === 'lista' || t.estado === 'entregada').length;
+    const total = Math.max(tasks.length, 1);
+    return Math.round((completed / total) * 100);
+  }, [tasks]);
+
+  const getColMeta = (col: string) => {
+    if (col === 'por_empezar') return { 
+      bg: 'bg-slate-500/[0.03] hover:bg-slate-500/[0.06] border-slate-500/10',
+      dot: 'bg-slate-400',
+      label: 'Por Empezar',
+      emoji: '📋'
+    };
+    if (col === 'en_proceso') return { 
+      bg: 'bg-blue-500/[0.03] hover:bg-blue-500/[0.06] border-blue-500/10',
+      dot: 'bg-blue-500',
+      label: 'En Proceso',
+      emoji: '⚡'
+    };
+    if (col === 'lista') return { 
+      bg: 'bg-emerald-500/[0.03] hover:bg-emerald-500/[0.06] border-emerald-500/10',
+      dot: 'bg-emerald-500',
+      label: 'Lista',
+      emoji: '✅'
+    };
+    return { bg: 'bg-muted/30', dot: 'bg-muted', label: col, emoji: '' };
   };
 
+  const viewItems = [
+    { key: 'kanban', label: 'Tablero', icon: LayoutGrid },
+    { key: 'list', label: 'Lista', icon: List },
+    { key: 'calendar', label: 'Calendario', icon: CalendarDays },
+    { key: 'schedule', label: 'Horario', icon: Clock },
+    { key: 'archived', label: 'Archivados', icon: Archive },
+  ] as const;
+
   return (
-    <main className="min-h-screen bg-background p-4 md:p-12">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
-          <div className="flex-1 flex flex-col md:flex-row items-start md:items-center gap-4">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight mb-1 flex items-center gap-2">
-                <Sparkles className="w-6 h-6 text-primary" />
-                Asistente Académico
-              </h1>
-              <p className="text-muted-foreground text-sm font-medium">
-                Gestión inteligente de tareas y recursos universitarios.
-              </p>
-            </div>
-            
-            {/* Global Progress Widget */}
-            <div className="hidden lg:flex items-center gap-3 px-4 py-2.5 bg-primary/5 border border-primary/20 rounded-2xl md:ml-8 shadow-sm">
-              <div className="flex flex-col items-end">
-                <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-primary/70">Avance</span>
-                <span className="text-sm font-bold tracking-tighter text-foreground">
-                  {Math.round((tasks.filter(t => t.estado === 'lista' || t.estado === 'entregada').length / Math.max(tasks.filter(t => !t.archivada || t.estado === 'entregada').length, 1)) * 100)}%
-                </span>
-              </div>
-              <div className="relative w-9 h-9 flex items-center justify-center">
-                <svg className="w-full h-full transform -rotate-90">
-                  <circle cx="18" cy="18" r="15" fill="transparent" stroke="currentColor" strokeWidth="4" className="text-primary/10" />
-                  <circle 
-                    cx="18" cy="18" r="15" 
-                    fill="transparent" 
-                    stroke="currentColor" 
-                    strokeWidth="4" 
-                    className="text-primary transition-all duration-1000 ease-out" 
-                    strokeDasharray="94.2" 
-                    strokeDashoffset={94.2 - (94.2 * (tasks.filter(t => t.estado === 'lista' || t.estado === 'entregada').length / Math.max(tasks.filter(t => !t.archivada || t.estado === 'entregada').length, 1)))} 
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </div>
-            </div>
-          </div>
+    <main className="min-h-screen dashboard-bg p-4 md:p-8 lg:p-12">
+      {/* Ambient Orbs */}
+      <div className="orb orb-1" />
+      <div className="orb orb-2" />
+      <div className="orb orb-3" />
 
-          {/* Automation Control Panel */}
-          <div className="flex flex-col sm:flex-row items-center gap-4 px-4 py-2 bg-muted/30 rounded-2xl border border-border/50 shadow-sm backdrop-blur-sm w-full md:w-auto">
-            <div className="flex flex-col items-center sm:items-end w-full sm:w-auto">
-              <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground/60 mb-0.5">Estado del Sistema</span>
+      <div className="max-w-7xl mx-auto relative z-10">
+        {/* ───── HEADER ───── */}
+        <motion.header 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="mb-10"
+        >
+          {/* Top Row: Title + System Status */}
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-6">
+            <div className="flex items-center gap-4">
+              {/* Logo Mark */}
+              <div className="relative shrink-0">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center shadow-lg shadow-primary/20">
+                  <Sparkles className="w-6 h-6 text-white" />
+                </div>
+                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-background flex items-center justify-center">
+                  <Zap className="w-2 h-2 text-white" />
+                </div>
+              </div>
+              
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold tracking-tight gradient-text">
+                  Asistente Académico
+                </h1>
+                <p className="text-muted-foreground text-xs md:text-sm font-medium mt-0.5">
+                  Gestión inteligente de tareas y recursos universitarios
+                </p>
+              </div>
+
+              {/* Progress Pill */}
+              <div className="hidden xl:flex items-center gap-2.5 ml-6 px-4 py-2 bg-primary/[0.06] border border-primary/15 rounded-2xl backdrop-blur-sm">
+                <div className="relative w-8 h-8">
+                  <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                    <circle cx="18" cy="18" r="14" fill="transparent" stroke="currentColor" strokeWidth="3" className="text-primary/10" />
+                    <circle 
+                      cx="18" cy="18" r="14" 
+                      fill="transparent" 
+                      stroke="currentColor" 
+                      strokeWidth="3" 
+                      className="text-primary transition-all duration-1000 ease-out" 
+                      strokeDasharray="87.96" 
+                      strokeDashoffset={87.96 - (87.96 * progress / 100)} 
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-primary/60">Avance</span>
+                  <span className="text-sm font-bold tracking-tight text-foreground">{progress}%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Automation Chip */}
+            <div className="flex items-center gap-3 px-4 py-2.5 bg-card/60 backdrop-blur-xl rounded-2xl border border-border/40 shadow-sm">
               <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full animate-pulse ${automationConfig.automatizacion_activa ? 'bg-green-500' : 'bg-red-500'}`} />
-                <span className={`text-[11px] font-bold ${automationConfig.automatizacion_activa ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                  {automationConfig.automatizacion_activa ? 'AUTORUN ACTIVO' : 'PAUSADO'}
-                </span>
-                {automationConfig.ultima_ejecucion_scraper && (
-                  <span className="text-[10px] text-muted-foreground/50 font-medium ml-1">
-                    • {new Date(automationConfig.ultima_ejecucion_scraper).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                <div className="relative">
+                  <div className={`w-2 h-2 rounded-full ${automationConfig.automatizacion_activa ? 'bg-emerald-500' : 'bg-red-400'}`} />
+                  {automationConfig.automatizacion_activa && (
+                    <div className="absolute inset-0 w-2 h-2 rounded-full bg-emerald-500 animate-ping opacity-50" />
+                  )}
+                </div>
+                <div className="flex flex-col">
+                  <span className={`text-[10px] font-bold ${automationConfig.automatizacion_activa ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
+                    {automationConfig.automatizacion_activa ? 'SISTEMA ACTIVO' : 'PAUSADO'}
                   </span>
-                )}
+                  {automationConfig.ultima_ejecucion_scraper && (
+                    <span className="text-[9px] text-muted-foreground/50 font-medium">
+                      Última: {new Date(automationConfig.ultima_ejecucion_scraper).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                </div>
               </div>
+              
+              <div className="w-px h-7 bg-border/40" />
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleAutomation}
+                className={`h-8 px-3 rounded-xl font-bold text-[10px] gap-1.5 transition-all duration-300 ${
+                  automationConfig.automatizacion_activa 
+                  ? 'text-red-500 hover:bg-red-500/10 hover:text-red-600' 
+                  : 'text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700'
+                }`}
+              >
+                {automationConfig.automatizacion_activa ? (
+                  <><PowerOff className="w-3 h-3" /> PAUSAR</>
+                ) : (
+                  <><Power className="w-3 h-3" /> ACTIVAR</>
+                )}
+              </Button>
             </div>
-            
-            <div className="hidden sm:block w-px h-8 bg-border/40 mx-1"></div>
-            
-            <Button
-              variant={automationConfig.automatizacion_activa ? "destructive" : "default"}
-              size="sm"
-              onClick={toggleAutomation}
-              className={`h-9 px-4 rounded-xl font-bold text-xs gap-2 transition-all duration-300 shadow-lg w-full sm:w-auto ${
-                automationConfig.automatizacion_activa 
-                ? 'bg-red-500/10 hover:bg-red-500 text-red-600 hover:text-white border-red-500/20' 
-                : 'bg-green-500/10 hover:bg-green-500 text-green-600 hover:text-white border-green-500/20'
-              }`}
-            >
-              {automationConfig.automatizacion_activa ? (
-                <>
-                  <PowerOff className="w-3.5 h-3.5" />
-                  PARADA DE EMERGENCIA
-                </>
-              ) : (
-                <>
-                  <Power className="w-3.5 h-3.5" />
-                  REANUDAR SISTEMA
-                </>
-              )}
-            </Button>
           </div>
 
-          <div className="w-full overflow-x-auto no-scrollbar pb-1">
-            <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-lg border w-fit min-w-full sm:min-w-0">
-              <Button
-                variant={view === 'kanban' ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setView('kanban')}
-                className="h-8 px-3 shrink-0"
-              >
-                <LayoutGrid className="w-4 h-4 mr-2" />
-                Tablero
-              </Button>
-              <Button
-                variant={view === 'list' ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setView('list')}
-                className="h-8 px-3 shrink-0"
-              >
-                <List className="w-4 h-4 mr-2" />
-                Lista
-              </Button>
-              <Button
-                variant={view === 'calendar' ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setView('calendar')}
-                className="h-8 px-3 shrink-0"
-              >
-                <CalendarDays className="w-4 h-4 mr-2" />
-                Calendario
-              </Button>
-              <Button
-                variant={view === 'schedule' ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setView('schedule')}
-                className="h-8 px-3 text-primary font-medium shrink-0"
-              >
-                <Clock className="w-4 h-4 mr-2" />
-                Horario
-              </Button>
-              <Button
-                variant={view === 'archived' ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setView('archived')}
-                className="h-8 px-3 shrink-0"
-              >
-                <Archive className="w-4 h-4 mr-2" />
-                Archivados
-              </Button>
-              <div className="w-px h-4 bg-border mx-1 shrink-0"></div>
+          {/* Navigation Tabs */}
+          <div className="w-full overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-card/40 backdrop-blur-sm border border-border/30 w-fit min-w-full sm:min-w-0">
+              {viewItems.map(({ key, label, icon: Icon }) => (
+                <Button
+                  key={key}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setView(key as typeof view)}
+                  className={`h-9 px-4 shrink-0 rounded-lg font-medium text-xs transition-all duration-200 ${
+                    view === key 
+                      ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90 hover:text-primary-foreground' 
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5 mr-1.5" />
+                  {label}
+                </Button>
+              ))}
+              <div className="w-px h-5 bg-border/30 mx-1 shrink-0" />
               <ThemeToggle />
             </div>
           </div>
-        </header>
+        </motion.header>
 
-        <AnalyticsHeader tasks={tasks} />
+        {/* ───── ANALYTICS ───── */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
+        >
+          <AnalyticsHeader tasks={tasks} />
+        </motion.div>
 
-        {/* Dashboard Content */}
-        {loading ? (
-          <div className="flex items-center justify-center h-64 opacity-50">
-            <p className="animate-pulse font-medium">Cargando tareas...</p>
-          </div>
-        ) : view === 'schedule' ? (
-          <ClassSchedule />
-        ) : view === 'calendar' ? (
-          <CalendarView tasks={tasks} />
-        ) : view === 'list' ? (
-          <div className="space-y-12">
-            {[
-              { label: 'Lunes', index: 1 },
-              { label: 'Martes', index: 2 },
-              { label: 'Miércoles', index: 3 },
-              { label: 'Jueves', index: 4 },
-              { label: 'Viernes', index: 5 },
-              { label: 'Sábado', index: 6 },
-              { label: 'Domingo', index: 0 },
-              { label: 'Sin fecha', index: -1 }
-            ].map((day) => {
-              const dayTasks = tasks.filter((t: any) => {
-                if (!t.fecha_entrega) return day.index === -1;
-                const d = new Date(t.fecha_entrega);
-                // getDay() returns 0 for Sunday, 1 for Monday...
-                return d.getDay() === day.index && day.index !== -1;
-              });
+        {/* ───── CONTENT ───── */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.25 }}
+        >
+          {loading ? (
+            <div className="flex flex-col items-center justify-center h-64 gap-4">
+              <div className="flex gap-1.5">
+                {[0, 1, 2].map(i => (
+                  <div 
+                    key={i} 
+                    className="w-2 h-2 rounded-full bg-primary/60 animate-bounce" 
+                    style={{ animationDelay: `${i * 0.15}s` }}
+                  />
+                ))}
+              </div>
+              <p className="text-sm text-muted-foreground font-medium">Cargando tareas...</p>
+            </div>
+          ) : view === 'schedule' ? (
+            <ClassSchedule />
+          ) : view === 'calendar' ? (
+            <CalendarView tasks={tasks} />
+          ) : view === 'list' ? (
+            <div className="space-y-10">
+              {[
+                { label: 'Lunes', index: 1 },
+                { label: 'Martes', index: 2 },
+                { label: 'Miércoles', index: 3 },
+                { label: 'Jueves', index: 4 },
+                { label: 'Viernes', index: 5 },
+                { label: 'Sábado', index: 6 },
+                { label: 'Domingo', index: 0 },
+                { label: 'Sin fecha', index: -1 }
+              ].map((day) => {
+                const dayTasks = tasks.filter((t: any) => {
+                  if (!t.fecha_entrega) return day.index === -1;
+                  const d = new Date(t.fecha_entrega);
+                  return d.getDay() === day.index && day.index !== -1;
+                });
 
-              if (dayTasks.length === 0 && day.label !== 'Sin fecha') return null;
-              if (dayTasks.length === 0 && day.label === 'Sin fecha' && tasks.every(t => t.fecha_entrega)) return null;
+                if (dayTasks.length === 0 && day.label !== 'Sin fecha') return null;
+                if (dayTasks.length === 0 && day.label === 'Sin fecha' && tasks.every(t => t.fecha_entrega)) return null;
 
-              return (
-                <div key={day.label} className="space-y-4">
-                  <div className="flex items-center gap-4 px-1">
-                    <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
-                      {day.label}
-                    </h2>
-                    <div className="h-px flex-1 bg-border/50"></div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 bg-muted rounded-full border shadow-sm">
-                      {dayTasks.length}
-                    </span>
+                return (
+                  <div key={day.label} className="space-y-4">
+                    <div className="flex items-center gap-4 px-1">
+                      <h2 className="text-xs font-bold uppercase tracking-[0.25em] text-muted-foreground/60">
+                        {day.label}
+                      </h2>
+                      <div className="h-px flex-1 bg-gradient-to-r from-border/50 to-transparent" />
+                      <span className="text-[10px] font-bold px-2.5 py-0.5 bg-primary/[0.06] text-primary rounded-full border border-primary/15">
+                        {dayTasks.length}
+                      </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {dayTasks.map((task: any) => (
+                        <TaskCard key={task.id} task={task} showChecklist={true} />
+                      ))}
+                    </div>
                   </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* ───── KANBAN BOARD ───── */
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+              <AnimatePresence mode="popLayout">
+                {columns.map((col: string) => {
+                  const meta = getColMeta(col);
+                  const colTasks = tasks.filter((t: any) => t.estado === col);
+                  const isDragOver = dragOverCol === col;
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {dayTasks.map((task: any) => (
-                      <TaskCard key={task.id} task={task} showChecklist={true} />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
-            <AnimatePresence mode="popLayout">
-              {columns.map((col: string) => (
-                <section 
-                  key={col} 
-                  className={`space-y-6 p-4 rounded-2xl border transition-colors duration-200 min-h-[500px] ${getColColor(col)}`}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => handleDrop(e, col)}
-                >
-                  <div className="flex justify-between items-center px-1">
-                    <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
-                      {col.replace('_', ' ')}
-                    </h2>
-                    <span className="text-[10px] font-bold px-2 py-0.5 bg-background rounded-full border shadow-sm">
-                      {tasks.filter((t: any) => t.estado === col).length}
-                    </span>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    {tasks.filter((t: any) => t.estado === col).map((task: any) => (
-                      <TaskCard key={task.id} task={task} showChecklist={true} />
-                    ))}
-                    {tasks.filter((t: any) => t.estado === col).length === 0 && (
-                      <div className="border border-dashed border-border/50 rounded-xl h-24 flex items-center justify-center text-muted-foreground/40 text-xs font-medium">
-                        Arrastra tareas aquí
+                  return (
+                    <motion.section 
+                      key={col}
+                      layout
+                      className={`space-y-4 p-4 rounded-2xl border transition-all duration-300 min-h-[500px] ${meta.bg} ${
+                        isDragOver ? 'ring-2 ring-primary/30 ring-offset-2 ring-offset-background scale-[1.01]' : ''
+                      }`}
+                      onDragOver={(e) => { e.preventDefault(); setDragOverCol(col); }}
+                      onDragLeave={() => setDragOverCol(null)}
+                      onDrop={(e) => handleDrop(e, col)}
+                    >
+                      {/* Column Header */}
+                      <div className="flex justify-between items-center px-1 pb-2">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${meta.dot}`} />
+                          <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                            {meta.label}
+                          </h2>
+                        </div>
+                        <span className="text-[10px] font-bold px-2.5 py-0.5 bg-background/80 backdrop-blur-sm rounded-full border border-border/50 shadow-sm tabular-nums">
+                          {colTasks.length}
+                        </span>
                       </div>
-                    )}
-                  </div>
-                </section>
-              ))}
-            </AnimatePresence>
-          </div>
-        )}
+                      
+                      {/* Task Cards */}
+                      <div className="space-y-3">
+                        {colTasks.map((task: any) => (
+                          <TaskCard key={task.id} task={task} showChecklist={true} />
+                        ))}
+                        {colTasks.length === 0 && (
+                          <div className={`border-2 border-dashed rounded-xl h-28 flex flex-col items-center justify-center gap-2 transition-all duration-300 ${
+                            isDragOver ? 'border-primary/40 bg-primary/[0.04]' : 'border-border/30'
+                          }`}>
+                            <span className="text-lg opacity-30">{meta.emoji}</span>
+                            <span className="text-muted-foreground/30 text-[10px] font-medium">
+                              Arrastra tareas aquí
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </motion.section>
+                  );
+                })}
+              </AnimatePresence>
+            </div>
+          )}
+        </motion.div>
       </div>
     </main>
   );

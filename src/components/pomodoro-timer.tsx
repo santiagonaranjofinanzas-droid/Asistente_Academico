@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, RotateCcw, X, Target } from 'lucide-react';
+import { Play, Pause, RotateCcw, X, Target, SkipForward } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface PomodoroTimerProps {
@@ -11,9 +11,10 @@ interface PomodoroTimerProps {
 }
 
 export function PomodoroTimer({ taskTitle, onClose }: PomodoroTimerProps) {
-  const [timeLeft, setTimeLeft] = useState(25 * 60); // 25 minutes in seconds
+  const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isActive, setIsActive] = useState(false);
   const [isBreak, setIsBreak] = useState(false);
+  const [sessions, setSessions] = useState(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -24,17 +25,15 @@ export function PomodoroTimer({ taskTitle, onClose }: PomodoroTimerProps) {
     } else if (timeLeft === 0) {
       setIsActive(false);
       if (!isBreak) {
-        // Switch to break
+        setSessions(prev => prev + 1);
         setIsBreak(true);
-        setTimeLeft(5 * 60); // 5 min break
+        setTimeLeft(5 * 60);
       } else {
-        // Switch to work
         setIsBreak(false);
         setTimeLeft(25 * 60);
       }
-      // Play sound notification
       try {
-        const audio = new Audio('/bell.mp3'); // Optional sound
+        const audio = new Audio('/bell.mp3');
         audio.play().catch(() => {});
       } catch (e) {}
     }
@@ -66,73 +65,119 @@ export function PomodoroTimer({ taskTitle, onClose }: PomodoroTimerProps) {
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
   
-  // Calculate progress percentage
   const totalSeconds = isBreak ? 5 * 60 : 25 * 60;
   const progress = ((totalSeconds - timeLeft) / totalSeconds) * 100;
+
+  // SVG circle params
+  const radius = 52;
+  const circumference = 2 * Math.PI * radius;
+  const dashoffset = circumference - (circumference * progress / 100);
 
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        initial={{ opacity: 0, scale: 0.9, y: 30 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="fixed bottom-6 right-6 z-50 w-80 bg-background/95 backdrop-blur-xl border border-border/50 shadow-2xl rounded-2xl overflow-hidden"
+        exit={{ opacity: 0, scale: 0.9, y: 30 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className="fixed bottom-6 right-6 z-50 w-72"
       >
-        <div className="absolute top-0 left-0 w-full h-1 bg-muted">
-          <div 
-            className={`h-full transition-all duration-1000 ease-linear ${isBreak ? 'bg-green-500' : 'bg-primary'}`}
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-        
-        <div className="p-5">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground/70 mb-1">
-                <Target className="w-3.5 h-3.5" />
-                {isBreak ? 'Descanso Corto' : 'Modo Enfoque'}
+        <div className="bg-card/90 backdrop-blur-2xl border border-border/40 shadow-2xl shadow-black/10 rounded-3xl overflow-hidden">
+          {/* Subtle gradient header */}
+          <div className={`px-5 pt-4 pb-3 ${isBreak ? 'bg-emerald-500/[0.04]' : 'bg-primary/[0.04]'}`}>
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Target className="w-3 h-3 text-primary/60" />
+                  <span className={`text-[9px] font-bold uppercase tracking-[0.15em] ${isBreak ? 'text-emerald-500/70' : 'text-primary/60'}`}>
+                    {isBreak ? 'Descanso' : 'Enfoque'}
+                  </span>
+                  {sessions > 0 && (
+                    <span className="text-[9px] text-muted-foreground/40 font-medium ml-1">
+                      #{sessions + 1}
+                    </span>
+                  )}
+                </div>
+                <h3 className="font-semibold text-xs line-clamp-1 text-foreground/80 max-w-[180px]" title={taskTitle}>
+                  {taskTitle}
+                </h3>
               </div>
-              <h3 className="font-semibold text-sm line-clamp-1 group-hover:text-primary transition-colors" title={taskTitle}>
-                {taskTitle}
-              </h3>
-            </div>
-            <button onClick={onClose} className="p-1.5 text-muted-foreground hover:bg-muted rounded-full transition-colors">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="flex flex-col items-center justify-center py-6">
-            <div className={`text-6xl font-black tracking-tighter tabular-nums ${isBreak ? 'text-green-500' : 'text-primary'}`}>
-              {minutes.toString().padStart(2, '0')}:{seconds.toString().padStart(2, '0')}
+              <button 
+                onClick={onClose} 
+                className="p-1 text-muted-foreground/40 hover:text-foreground/60 hover:bg-muted/40 rounded-lg transition-all"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
 
-          <div className="flex justify-center gap-3">
+          {/* Timer Display */}
+          <div className="flex flex-col items-center justify-center py-6 px-5">
+            <div className="relative">
+              {/* Progress Circle */}
+              <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 120 120">
+                <circle 
+                  cx="60" cy="60" r={radius} 
+                  fill="transparent" 
+                  stroke="currentColor" 
+                  strokeWidth="4" 
+                  className="text-muted/30" 
+                />
+                <circle 
+                  cx="60" cy="60" r={radius} 
+                  fill="transparent" 
+                  stroke="currentColor" 
+                  strokeWidth="4" 
+                  className={`transition-all duration-1000 ease-linear ${isBreak ? 'text-emerald-500' : 'text-primary'}`}
+                  strokeDasharray={circumference} 
+                  strokeDashoffset={dashoffset} 
+                  strokeLinecap="round"
+                />
+              </svg>
+              
+              {/* Time Text */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className={`text-3xl font-bold tracking-tight tabular-nums ${isBreak ? 'text-emerald-500' : 'text-foreground'}`}>
+                  {minutes.toString().padStart(2, '0')}
+                </span>
+                <span className={`text-3xl font-bold tracking-tight tabular-nums -mt-1 ${isBreak ? 'text-emerald-500/60' : 'text-foreground/40'}`}>
+                  {seconds.toString().padStart(2, '0')}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="flex justify-center items-center gap-3 px-5 pb-5">
             <Button
-              variant="outline"
+              variant="ghost"
               size="icon"
               onClick={resetTimer}
-              className="rounded-full w-10 h-10 border-border/50 hover:bg-muted"
+              className="rounded-xl w-9 h-9 text-muted-foreground/50 hover:text-foreground hover:bg-muted/30"
             >
-              <RotateCcw className="w-4 h-4" />
+              <RotateCcw className="w-3.5 h-3.5" />
             </Button>
             
             <Button
-              variant={isBreak ? "outline" : "default"}
+              variant="ghost"
               size="icon"
               onClick={toggleTimer}
-              className={`rounded-full w-14 h-14 shadow-lg ${isBreak ? 'border-green-500/30 text-green-600 hover:bg-green-500/10 hover:text-green-700' : ''}`}
+              className={`rounded-2xl w-14 h-14 transition-all duration-300 ${
+                isBreak 
+                  ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500'
+                  : 'bg-primary/10 hover:bg-primary/20 text-primary'
+              }`}
             >
-              {isActive ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6 ml-1" />}
+              {isActive ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
             </Button>
             
             <Button
-              variant="outline"
+              variant="ghost"
               size="icon"
               onClick={skipToNext}
-              className="rounded-full w-10 h-10 border-border/50 hover:bg-muted"
+              className="rounded-xl w-9 h-9 text-muted-foreground/50 hover:text-foreground hover:bg-muted/30"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+              <SkipForward className="w-3.5 h-3.5" />
             </Button>
           </div>
         </div>
