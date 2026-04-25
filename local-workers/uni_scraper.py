@@ -358,6 +358,24 @@ async def run_scraper():
                 # --- SAVE TO SUPABASE ---
                 if supabase:
                     try:
+                        # Check if task already exists
+                        existing = supabase.table("tareas").select("estado, archivada, checklist, resumen_ia").eq("id_moodle", moodle_id).execute()
+                        
+                        if existing.data and len(existing.data) > 0:
+                            old_task = existing.data[0]
+                            # Preserve user state if not newly delivered in Moodle
+                            if not is_delivered and old_task.get("estado") not in [None, "por_empezar"]:
+                                task_data["estado"] = old_task.get("estado")
+                                task_data["archivada"] = old_task.get("archivada")
+                            
+                            # Always preserve checklist if it exists
+                            if old_task.get("checklist"):
+                                task_data["checklist"] = old_task.get("checklist")
+                                
+                            # Preserve AI summary if we didn't generate a new one
+                            if not resumen_ia and old_task.get("resumen_ia"):
+                                task_data["resumen_ia"] = old_task.get("resumen_ia")
+
                         supabase.table("tareas").upsert(task_data, on_conflict="id_moodle").execute()
                         status = "ENTREGADA" if is_delivered else "PENDIENTE"
                         print(f"  [DB] Synced [{status}] | Materia: {materia}")

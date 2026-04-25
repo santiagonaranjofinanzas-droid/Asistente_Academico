@@ -148,14 +148,41 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
-          <div className="flex-1">
-            <h1 className="text-3xl font-bold tracking-tight mb-1 flex items-center gap-2">
-              <Sparkles className="w-6 h-6 text-primary" />
-              Asistente Académico
-            </h1>
-            <p className="text-muted-foreground text-sm font-medium">
-              Gestión inteligente de tareas y recursos universitarios.
-            </p>
+          <div className="flex-1 flex flex-col md:flex-row items-start md:items-center gap-4">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight mb-1 flex items-center gap-2">
+                <Sparkles className="w-6 h-6 text-primary" />
+                Asistente Académico
+              </h1>
+              <p className="text-muted-foreground text-sm font-medium">
+                Gestión inteligente de tareas y recursos universitarios.
+              </p>
+            </div>
+            
+            {/* Global Progress Widget */}
+            <div className="hidden lg:flex items-center gap-3 px-4 py-2.5 bg-primary/5 border border-primary/20 rounded-2xl md:ml-8 shadow-sm">
+              <div className="flex flex-col items-end">
+                <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-primary/70">Avance</span>
+                <span className="text-sm font-bold tracking-tighter text-foreground">
+                  {Math.round((tasks.filter(t => t.estado === 'lista' || t.estado === 'entregada').length / Math.max(tasks.filter(t => !t.archivada || t.estado === 'entregada').length, 1)) * 100)}%
+                </span>
+              </div>
+              <div className="relative w-9 h-9 flex items-center justify-center">
+                <svg className="w-full h-full transform -rotate-90">
+                  <circle cx="18" cy="18" r="15" fill="transparent" stroke="currentColor" strokeWidth="4" className="text-primary/10" />
+                  <circle 
+                    cx="18" cy="18" r="15" 
+                    fill="transparent" 
+                    stroke="currentColor" 
+                    strokeWidth="4" 
+                    className="text-primary transition-all duration-1000 ease-out" 
+                    strokeDasharray="94.2" 
+                    strokeDashoffset={94.2 - (94.2 * (tasks.filter(t => t.estado === 'lista' || t.estado === 'entregada').length / Math.max(tasks.filter(t => !t.archivada || t.estado === 'entregada').length, 1)))} 
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </div>
+            </div>
           </div>
 
           {/* Automation Control Panel */}

@@ -33,16 +33,18 @@ const statusColors = {
   entregada: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
 };
 
-import { Sparkles as SparklesIcon, Loader2, Download as DownloadIcon, FileText, Brain, Plus, Trash2, CheckCircle } from 'lucide-react';
+import { Sparkles as SparklesIcon, Loader2, Download as DownloadIcon, FileText, Brain, Plus, Trash2, CheckCircle, Play } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/lib/supabase';
+import { PomodoroTimer } from '@/components/pomodoro-timer';
 
 export function TaskCard({ task, showChecklist = false }: { task: Task, showChecklist?: boolean }) {
   const [showSummary, setShowSummary] = useState(false);
   const [showExtracted, setShowExtracted] = useState(false);
   const [newItemText, setNewItemText] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showPomodoro, setShowPomodoro] = useState(false);
 
   // Initialize checklist from task or empty array
   const checklist = useMemo(() => {
@@ -169,8 +171,21 @@ export function TaskCard({ task, showChecklist = false }: { task: Task, showChec
                 </Badge>
               )}
             </div>
-            <div className={`text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full border shrink-0 ${statusColors[task.estado as keyof typeof statusColors]}`}>
-              {task.estado.replace('_', ' ')}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <div className={`text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full border ${statusColors[task.estado as keyof typeof statusColors]}`}>
+                {task.estado.replace('_', ' ')}
+              </div>
+              {task.estado === 'en_proceso' && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-6 w-6 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10 rounded-full"
+                  onClick={(e) => { e.stopPropagation(); setShowPomodoro(true); }}
+                  title="Modo Enfoque"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                </Button>
+              )}
             </div>
           </div>
           <CardTitle className="text-sm sm:text-base font-bold mt-2 group-hover:text-primary transition-colors line-clamp-2 leading-tight">
@@ -287,14 +302,25 @@ export function TaskCard({ task, showChecklist = false }: { task: Task, showChec
           {/* Checklist Section */}
           {showChecklist && (
             <div className="mt-6 space-y-3 pt-4 border-t border-border/50">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-semibold flex items-center gap-1.5">
-                  <CheckCircle className="w-3 h-3" />
-                  Checklist ({checklist.filter((i: any) => i.completed).length}/{checklist.length})
-                </span>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                    <CheckCircle className="w-3 h-3" />
+                    Checklist ({checklist.filter((i: any) => i.completed).length}/{checklist.length})
+                  </span>
+                </div>
+                
+                {checklist.length > 0 && (
+                  <div className="h-1.5 w-full bg-muted/50 rounded-full overflow-hidden border border-border/50">
+                    <div 
+                      className="h-full bg-primary/80 transition-all duration-500 ease-out"
+                      style={{ width: `${(checklist.filter((i: any) => i.completed).length / checklist.length) * 100}%` }}
+                    />
+                  </div>
+                )}
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 mt-2">
                 {checklist.map((item: any) => (
                   <div key={item.id} className="flex items-center gap-2 group/item">
                     <Checkbox 
@@ -337,6 +363,13 @@ export function TaskCard({ task, showChecklist = false }: { task: Task, showChec
         </CardContent>
       </Card>
       </div>
+
+      {showPomodoro && (
+        <PomodoroTimer 
+          taskTitle={task.titulo} 
+          onClose={() => setShowPomodoro(false)} 
+        />
+      )}
     </motion.div>
   );
 }
