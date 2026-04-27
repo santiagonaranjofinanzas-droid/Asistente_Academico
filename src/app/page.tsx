@@ -141,7 +141,12 @@ export default function Dashboard() {
   const getTaskType = (t: any) => {
     if (t.tipo) return t.tipo;
     const title = t.titulo?.toLowerCase() || '';
-    if (title.includes('prueba') || title.includes('examen') || title.includes('test') || title.includes('evaluaci') || title.includes('quiz') || title.includes('control') || title.includes('leccion') || title.includes('lección')) {
+    
+    if ((title.includes('tarea') || title.includes('deber')) && !title.includes('control de lectura')) {
+      return 'deber';
+    }
+
+    if (title.includes('prueba') || title.includes('examen') || title.includes('test') || title.includes('quiz') || title.includes('control de lectura') || title.includes('leccion') || title.includes('lección')) {
       return 'prueba';
     }
     return 'deber';

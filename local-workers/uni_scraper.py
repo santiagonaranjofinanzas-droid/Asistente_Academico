@@ -62,11 +62,56 @@ Responde en español, sé directo, usa viñetas concisas y no más de 100 palabr
         return ""
 
 
-def detect_task_type(title: str) -> str:
-    """Categorize task based on keywords in title."""
+def generate_ai_type(titulo: str, materia: str) -> str:
+    """Use local Ollama to classify the task as 'prueba' or 'deber'."""
+    try:
+        try:
+            requests.get("http://127.0.0.1:11434/", timeout=2)
+        except:
+            return ""
+
+        prompt = f"""Clasifica la siguiente actividad académica en una de dos categorías: 'prueba' (si es un examen, test, lección o control de lectura) o 'deber' (si es una tarea, proyecto, ensayo o trabajo en casa).
+Responde ÚNICAMENTE con la palabra 'prueba' o 'deber' en minúsculas.
+
+Título: {titulo}
+Materia: {materia}
+"""
+        response = requests.post(OLLAMA_API, json={
+            "model": "llama3.2",
+            "prompt": prompt,
+            "stream": False
+        }, timeout=30)
+        
+        if response.status_code == 200:
+            data = response.json()
+            ans = data.get("response", "").strip().lower()
+            if "prueba" in ans or "examen" in ans:
+                return "prueba"
+            if "deber" in ans or "tarea" in ans:
+                return "deber"
+        return ""
+    except Exception:
+        return ""
+
+
+def detect_task_type(title: str, materia: str) -> str:
+    """Categorize task robustly using AI or keywords."""
+    # Intentar con IA primero
+    ai_type = generate_ai_type(title, materia)
+    if ai_type in ["prueba", "deber"]:
+        print(f"  [IA-TYPE] Clasificado como: {ai_type}")
+        return ai_type
+        
+    print("  [IA-TYPE] Fallback a palabras clave")
     t = title.lower()
+    
+    # Si explícitamente dice tarea o deber
+    if "tarea" in t or "deber" in t:
+        if not "control de lectura" in t:
+            return "deber"
+
     # Pruebas, Exámenes, Controles de lectura
-    if any(w in t for w in ["prueba", "examen", "test", "evaluaci", "quiz", "control", "leccion", "lección"]):
+    if any(w in t for w in ["prueba", "examen", "test", "quiz", "control de lectura", "leccion", "lección"]):
         return "prueba"
     return "deber"
 
@@ -362,7 +407,7 @@ async def run_scraper():
                     "texto_extraido": texto_extraido,
                     "archivos_adjuntos": json.dumps(archivos_adjuntos) if archivos_adjuntos else "[]",
                     "resumen_ia": resumen_ia,
-                    "tipo": detect_task_type(title),
+                    "tipo": detect_task_type(title, materia),
                 }
                 
                 # --- SAVE TO SUPABASE ---
@@ -392,7 +437,7 @@ async def run_scraper():
                     except Exception as e:
                         # Fallback: try without new columns
                         print(f"  [DB] Full save failed: {e}")
-                        fallback = {k: v for k, v in task_data.items() if k not in ['texto_extraido', 'archivos_adjuntos', 'resumen_ia']}
+                        fallback = {k: v for k, v in task_data.items() if k not in ['texto_extraido', 'archivos_adjuntos', 'resumen_ia', 'tipo']}
                         try:
                             supabase.table("tareas").upsert(fallback, on_conflict="id_moodle").execute()
                             print(f"  [DB] Fallback save OK")
