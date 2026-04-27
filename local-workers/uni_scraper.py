@@ -62,6 +62,15 @@ Responde en español, sé directo, usa viñetas concisas y no más de 100 palabr
         return ""
 
 
+def detect_task_type(title: str) -> str:
+    """Categorize task based on keywords in title."""
+    t = title.lower()
+    # Pruebas, Exámenes, Controles de lectura
+    if any(w in t for w in ["prueba", "examen", "test", "evaluaci", "quiz", "control", "leccion", "lección"]):
+        return "prueba"
+    return "deber"
+
+
 def extract_text_from_file(file_path: str) -> str:
     """Extract text from PDF or DOCX files."""
     ext = os.path.splitext(file_path)[1].lower()
@@ -353,6 +362,7 @@ async def run_scraper():
                     "texto_extraido": texto_extraido,
                     "archivos_adjuntos": json.dumps(archivos_adjuntos) if archivos_adjuntos else "[]",
                     "resumen_ia": resumen_ia,
+                    "tipo": detect_task_type(title),
                 }
                 
                 # --- SAVE TO SUPABASE ---

@@ -24,6 +24,7 @@ interface Task {
   archivos_adjuntos?: Attachment[] | string;
   resumen_ia?: string;
   checklist?: { id: string; text: string; completed: boolean }[];
+  tipo?: 'deber' | 'prueba';
 }
 
 const statusConfig = {

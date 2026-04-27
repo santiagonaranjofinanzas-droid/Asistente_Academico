@@ -14,7 +14,7 @@ import { Power, PowerOff } from 'lucide-react';
 
 export default function Dashboard() {
   const [tasks, setTasks] = useState<any[]>([]);
-  const [view, setView] = useState<'kanban' | 'list' | 'calendar' | 'schedule' | 'archived'>('kanban');
+  const [view, setView] = useState<'deberes' | 'pruebas' | 'list' | 'calendar' | 'schedule' | 'archived'>('deberes');
   const [loading, setLoading] = useState(true);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   
@@ -145,6 +145,12 @@ export default function Dashboard() {
     return Math.round((completed / total) * 100);
   }, [tasks]);
 
+  const displayTasks = useMemo(() => {
+    if (view === 'deberes') return tasks.filter(t => !t.tipo || t.tipo === 'deber');
+    if (view === 'pruebas') return tasks.filter(t => t.tipo === 'prueba');
+    return tasks;
+  }, [tasks, view]);
+
   const getColMeta = (col: string) => {
     if (col === 'por_empezar') return { 
       bg: 'bg-slate-500/[0.03] hover:bg-slate-500/[0.06] border-slate-500/10',
@@ -168,9 +174,10 @@ export default function Dashboard() {
   };
 
   const viewItems = [
-    { key: 'kanban', label: 'Tablero', icon: LayoutGrid },
+    { key: 'deberes', label: 'Deberes', icon: LayoutGrid },
+    { key: 'pruebas', label: 'Pruebas & Controles', icon: LayoutGrid },
     { key: 'list', label: 'Lista', icon: List },
-    { key: 'calendar', label: 'Calendario', icon: CalendarDays },
+    { key: 'calendar', label: 'Calendarios', icon: CalendarDays },
     { key: 'schedule', label: 'Horario', icon: Clock },
     { key: 'archived', label: 'Archivados', icon: Archive },
   ] as const;
@@ -334,7 +341,23 @@ export default function Dashboard() {
           ) : view === 'schedule' ? (
             <ClassSchedule />
           ) : view === 'calendar' ? (
-            <CalendarView tasks={tasks} />
+            <div className="space-y-12">
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-1.5 h-6 bg-primary rounded-full" />
+                  <h2 className="text-xl font-bold tracking-tight">Calendario de Deberes</h2>
+                </div>
+                <CalendarView tasks={tasks.filter(t => !t.tipo || t.tipo === 'deber')} />
+              </div>
+              
+              <div className="space-y-4 pt-8 border-t border-border/40">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-1.5 h-6 bg-purple-500 rounded-full" />
+                  <h2 className="text-xl font-bold tracking-tight">Calendario de Pruebas & Controles</h2>
+                </div>
+                <CalendarView tasks={tasks.filter(t => t.tipo === 'prueba')} />
+              </div>
+            </div>
           ) : view === 'list' ? (
             <div className="space-y-10">
               {[
@@ -347,14 +370,14 @@ export default function Dashboard() {
                 { label: 'Domingo', index: 0 },
                 { label: 'Sin fecha', index: -1 }
               ].map((day) => {
-                const dayTasks = tasks.filter((t: any) => {
+                const dayTasks = displayTasks.filter((t: any) => {
                   if (!t.fecha_entrega) return day.index === -1;
                   const d = new Date(t.fecha_entrega);
                   return d.getDay() === day.index && day.index !== -1;
                 });
 
                 if (dayTasks.length === 0 && day.label !== 'Sin fecha') return null;
-                if (dayTasks.length === 0 && day.label === 'Sin fecha' && tasks.every(t => t.fecha_entrega)) return null;
+                if (dayTasks.length === 0 && day.label === 'Sin fecha' && displayTasks.every(t => t.fecha_entrega)) return null;
 
                 return (
                   <div key={day.label} className="space-y-4">
@@ -383,7 +406,7 @@ export default function Dashboard() {
               <AnimatePresence mode="popLayout">
                 {columns.map((col: string) => {
                   const meta = getColMeta(col);
-                  const colTasks = tasks.filter((t: any) => t.estado === col);
+                  const colTasks = displayTasks.filter((t: any) => t.estado === col);
                   const isDragOver = dragOverCol === col;
                   
                   return (
