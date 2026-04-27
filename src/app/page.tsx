@@ -147,18 +147,18 @@ export default function Dashboard() {
     return 'deber';
   };
 
+  const displayTasks = useMemo(() => {
+    if (view === 'deberes') return tasks.filter(t => getTaskType(t) === 'deber');
+    if (view === 'pruebas') return tasks.filter(t => getTaskType(t) === 'prueba');
+    return tasks;
+  }, [tasks, view]);
+
   // Progress calculation
   const progress = useMemo(() => {
     const completed = displayTasks.filter(t => t.estado === 'lista' || t.estado === 'entregada').length;
     const total = Math.max(displayTasks.length, 1);
     return Math.round((completed / total) * 100);
   }, [displayTasks]);
-
-  const displayTasks = useMemo(() => {
-    if (view === 'deberes') return tasks.filter(t => getTaskType(t) === 'deber');
-    if (view === 'pruebas') return tasks.filter(t => getTaskType(t) === 'prueba');
-    return tasks;
-  }, [tasks, view]);
 
   const getColMeta = (col: string) => {
     if (col === 'por_empezar') return { 
