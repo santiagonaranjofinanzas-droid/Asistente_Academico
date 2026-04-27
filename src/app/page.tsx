@@ -138,16 +138,25 @@ export default function Dashboard() {
     }
   };
 
+  const getTaskType = (t: any) => {
+    if (t.tipo) return t.tipo;
+    const title = t.titulo?.toLowerCase() || '';
+    if (title.includes('prueba') || title.includes('examen') || title.includes('test') || title.includes('evaluaci') || title.includes('quiz') || title.includes('control') || title.includes('leccion') || title.includes('lección')) {
+      return 'prueba';
+    }
+    return 'deber';
+  };
+
   // Progress calculation
   const progress = useMemo(() => {
-    const completed = tasks.filter(t => t.estado === 'lista' || t.estado === 'entregada').length;
-    const total = Math.max(tasks.length, 1);
+    const completed = displayTasks.filter(t => t.estado === 'lista' || t.estado === 'entregada').length;
+    const total = Math.max(displayTasks.length, 1);
     return Math.round((completed / total) * 100);
-  }, [tasks]);
+  }, [displayTasks]);
 
   const displayTasks = useMemo(() => {
-    if (view === 'deberes') return tasks.filter(t => !t.tipo || t.tipo === 'deber');
-    if (view === 'pruebas') return tasks.filter(t => t.tipo === 'prueba');
+    if (view === 'deberes') return tasks.filter(t => getTaskType(t) === 'deber');
+    if (view === 'pruebas') return tasks.filter(t => getTaskType(t) === 'prueba');
     return tasks;
   }, [tasks, view]);
 
@@ -316,7 +325,7 @@ export default function Dashboard() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.15 }}
         >
-          <AnalyticsHeader tasks={tasks} />
+          <AnalyticsHeader tasks={displayTasks} />
         </motion.div>
 
         {/* ───── CONTENT ───── */}
@@ -347,7 +356,7 @@ export default function Dashboard() {
                   <div className="w-1.5 h-6 bg-primary rounded-full" />
                   <h2 className="text-xl font-bold tracking-tight">Calendario de Deberes</h2>
                 </div>
-                <CalendarView tasks={tasks.filter(t => !t.tipo || t.tipo === 'deber')} />
+                <CalendarView tasks={tasks.filter(t => getTaskType(t) === 'deber')} />
               </div>
               
               <div className="space-y-4 pt-8 border-t border-border/40">
@@ -355,7 +364,7 @@ export default function Dashboard() {
                   <div className="w-1.5 h-6 bg-purple-500 rounded-full" />
                   <h2 className="text-xl font-bold tracking-tight">Calendario de Pruebas & Controles</h2>
                 </div>
-                <CalendarView tasks={tasks.filter(t => t.tipo === 'prueba')} />
+                <CalendarView tasks={tasks.filter(t => getTaskType(t) === 'prueba')} />
               </div>
             </div>
           ) : view === 'list' ? (
