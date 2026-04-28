@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-export function middleware(request: NextRequest) {
+export default async function proxy(request: NextRequest) {
   // If the user has the auth cookie, allow them through
   const session = request.cookies.get('auth_session');
   
