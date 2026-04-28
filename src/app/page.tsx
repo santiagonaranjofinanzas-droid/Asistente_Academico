@@ -10,7 +10,8 @@ import { ClassSchedule } from '@/components/class-schedule';
 import { Archive, LayoutGrid, List, Sparkles, CalendarDays, Clock, Zap } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Power, PowerOff } from 'lucide-react';
+import { Power, PowerOff, ChevronDown, Trophy } from 'lucide-react';
+import { startOfWeek, endOfWeek, isWithinInterval } from 'date-fns';
 
 export default function Dashboard() {
   const [tasks, setTasks] = useState<any[]>([]);
@@ -85,24 +86,7 @@ export default function Dashboard() {
     }
   }
 
-  const toggleAutomation = async () => {
-    const newState = !automationConfig.automatizacion_activa;
-    // Optimistic
-    setAutomationConfig({ ...automationConfig, automatizacion_activa: newState });
-    
-    try {
-      const res = await fetch('/api/automation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ automatizacion_activa: newState })
-      });
-      const data = await res.json();
-      setAutomationConfig(data);
-    } catch (error) {
-      console.error('Error toggling automation:', error);
-      fetchAutomationConfig(); // revert
-    }
-  };
+  // toggleAutomation removed as per user request
 
   // Reload tasks when view changes to archived/back
   useEffect(() => {
@@ -153,9 +137,24 @@ export default function Dashboard() {
   };
 
   const displayTasks = useMemo(() => {
-    if (view === 'deberes') return tasks.filter(t => getTaskType(t) === 'deber');
-    if (view === 'pruebas') return tasks.filter(t => getTaskType(t) === 'prueba');
-    return tasks;
+    let filtered = tasks;
+    
+    // Global week filter (optional: only for specific views)
+    if (view === 'deberes' || view === 'pruebas' || view === 'list') {
+      const now = new Date();
+      const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+      
+      filtered = tasks.filter(t => {
+        if (!t.fecha_entrega) return true; // Keep tasks without date?
+        const d = new Date(t.fecha_entrega);
+        return isWithinInterval(d, { start: weekStart, end: weekEnd });
+      });
+    }
+
+    if (view === 'deberes') return filtered.filter(t => getTaskType(t) === 'deber');
+    if (view === 'pruebas') return filtered.filter(t => getTaskType(t) === 'prueba');
+    return filtered;
   }, [tasks, view]);
 
   // Progress calculation
@@ -216,8 +215,8 @@ export default function Dashboard() {
             <div className="flex items-center gap-4">
               {/* Logo Mark */}
               <div className="relative shrink-0">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center shadow-lg shadow-primary/20">
-                  <Sparkles className="w-6 h-6 text-white" />
+                <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-lg shadow-emerald-500/20 overflow-hidden border-2 border-emerald-500/20">
+                  <img src="/espe-logo.png" alt="ESPE" className="w-10 h-10 object-contain" />
                 </div>
                 <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-background flex items-center justify-center">
                   <Zap className="w-2 h-2 text-white" />
@@ -225,7 +224,7 @@ export default function Dashboard() {
               </div>
               
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold tracking-tight gradient-text">
+                <h1 className="text-2xl md:text-3xl font-bold tracking-tight bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
                   Asistente Académico
                 </h1>
                 <p className="text-muted-foreground text-xs md:text-sm font-medium mt-0.5">
@@ -234,27 +233,34 @@ export default function Dashboard() {
               </div>
 
               {/* Progress Pill */}
-              <div className="hidden xl:flex items-center gap-2.5 ml-6 px-4 py-2 bg-primary/[0.06] border border-primary/15 rounded-2xl backdrop-blur-sm">
+              <button 
+                onClick={() => {
+                  const el = document.getElementById('task-content');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="hidden xl:flex items-center gap-2.5 ml-6 px-4 py-2 bg-emerald-500/[0.06] border border-emerald-500/15 rounded-2xl backdrop-blur-sm hover:bg-emerald-500/10 transition-colors cursor-pointer group"
+              >
                 <div className="relative w-8 h-8">
                   <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                    <circle cx="18" cy="18" r="14" fill="transparent" stroke="currentColor" strokeWidth="3" className="text-primary/10" />
+                    <circle cx="18" cy="18" r="14" fill="transparent" stroke="currentColor" strokeWidth="3" className="text-emerald-500/10" />
                     <circle 
                       cx="18" cy="18" r="14" 
                       fill="transparent" 
                       stroke="currentColor" 
                       strokeWidth="3" 
-                      className="text-primary transition-all duration-1000 ease-out" 
+                      className="text-emerald-500 transition-all duration-1000 ease-out" 
                       strokeDasharray="87.96" 
                       strokeDashoffset={87.96 - (87.96 * progress / 100)} 
                       strokeLinecap="round"
                     />
                   </svg>
+                  <Trophy className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-primary/60">Avance</span>
+                <div className="flex flex-col text-left">
+                  <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-emerald-600/60">Tu Avance</span>
                   <span className="text-sm font-bold tracking-tight text-foreground">{progress}%</span>
                 </div>
-              </div>
+              </button>
             </div>
 
             {/* Automation Chip */}
@@ -277,25 +283,6 @@ export default function Dashboard() {
                   )}
                 </div>
               </div>
-              
-              <div className="w-px h-7 bg-border/40" />
-              
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={toggleAutomation}
-                className={`h-8 px-3 rounded-xl font-bold text-[10px] gap-1.5 transition-all duration-300 ${
-                  automationConfig.automatizacion_activa 
-                  ? 'text-red-500 hover:bg-red-500/10 hover:text-red-600' 
-                  : 'text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700'
-                }`}
-              >
-                {automationConfig.automatizacion_activa ? (
-                  <><PowerOff className="w-3 h-3" /> PAUSAR</>
-                ) : (
-                  <><Power className="w-3 h-3" /> ACTIVAR</>
-                )}
-              </Button>
             </div>
           </div>
 
@@ -335,6 +322,7 @@ export default function Dashboard() {
 
         {/* ───── CONTENT ───── */}
         <motion.div
+          id="task-content"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.25 }}

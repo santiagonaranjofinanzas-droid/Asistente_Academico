@@ -11,6 +11,7 @@ import pdfplumber
 import docx
 import mimetypes
 import requests
+from ai_service import generate_response
 
 load_dotenv()
 
@@ -20,21 +21,13 @@ USERNAME = os.getenv("CAMPUS_USER")
 PASSWORD = os.getenv("CAMPUS_PASS")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-OLLAMA_API = "http://127.0.0.1:11434/api/generate"
 
 # --- Helper Functions ---
 
 def generate_ai_summary(titulo: str, materia: str, descripcion: str, texto_extraido: str) -> str:
-    """Generate an AI summary using local Ollama. Returns empty string on failure."""
+    """Generate an AI summary using NVIDIA AI API. Returns empty string on failure."""
     try:
-        # Check if Ollama is running
-        try:
-            requests.get("http://127.0.0.1:11434/", timeout=2)
-        except:
-            print("  [IA] Ollama no está corriendo. Saltando resumen IA.")
-            return ""
-        
-        context = texto_extraido[:2500] if texto_extraido else ""
+        context = texto_extraido[:3000] if texto_extraido else ""
         extra = f"\nContexto del documento adjunto:\n{context}" if context else ""
         
         prompt = f"""Eres un asistente académico experto. Resume brevemente de qué trata esta tarea y da 3 pasos sugeridos para realizarla rápidamente.
@@ -42,20 +35,14 @@ Tarea: {titulo}
 Materia: {materia}
 Descripción: {descripcion}
 {extra}
-Responde en español, sé directo, usa viñetas concisas y no más de 100 palabras en total."""
+Responde en español, sé directo, usa viñetas concisas y no más de 120 palabras en total."""
 
-        response = requests.post(OLLAMA_API, json={
-            "model": "llama3.2",
-            "prompt": prompt,
-            "stream": False
-        }, timeout=120)
+        summary = generate_response(prompt)
         
-        if response.status_code == 200:
-            data = response.json()
-            summary = data.get("response", "").strip()
-            if summary:
-                print(f"  [IA] Resumen generado ({len(summary)} chars)")
-                return summary
+        if summary and not summary.startswith("Error"):
+            print(f"  [IA] Resumen generado ({len(summary)} chars)")
+            return summary.strip()
+        
         return ""
     except Exception as e:
         print(f"  [IA] Error generando resumen: {e}")
@@ -63,28 +50,18 @@ Responde en español, sé directo, usa viñetas concisas y no más de 100 palabr
 
 
 def generate_ai_type(titulo: str, materia: str) -> str:
-    """Use local Ollama to classify the task as 'prueba' or 'deber'."""
+    """Use NVIDIA AI API to classify the task as 'prueba' or 'deber'."""
     try:
-        try:
-            requests.get("http://127.0.0.1:11434/", timeout=2)
-        except:
-            return ""
-
         prompt = f"""Clasifica la siguiente actividad académica en una de dos categorías: 'prueba' (si es un examen, test, lección o control de lectura) o 'deber' (si es una tarea, proyecto, ensayo o trabajo en casa).
 Responde ÚNICAMENTE con la palabra 'prueba' o 'deber' en minúsculas.
 
 Título: {titulo}
 Materia: {materia}
 """
-        response = requests.post(OLLAMA_API, json={
-            "model": "llama3.2",
-            "prompt": prompt,
-            "stream": False
-        }, timeout=30)
+        ans = generate_response(prompt, system_prompt="Eres un clasificador de tareas académicas. Responde solo con la categoría.")
         
-        if response.status_code == 200:
-            data = response.json()
-            ans = data.get("response", "").strip().lower()
+        if ans:
+            ans = ans.lower()
             if "prueba" in ans or "examen" in ans:
                 return "prueba"
             if "deber" in ans or "tarea" in ans:

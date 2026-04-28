@@ -5,6 +5,7 @@ from email.header import decode_header
 import requests
 import json
 from dotenv import load_dotenv
+from ai_service import generate_response
 from telegram_notifier import send_notification
 import asyncio
 
@@ -14,8 +15,6 @@ load_dotenv()
 EMAIL = os.getenv("GMAIL_USER")
 PASSWORD = os.getenv("GMAIL_APP_PASS")
 IMAP_SERVER = "imap.gmail.com"
-OLLAMA_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-MODEL = os.getenv("OLLAMA_MODEL", "llama3")
 
 def get_unread_emails():
     try:
@@ -53,7 +52,7 @@ def get_unread_emails():
         print(f"Error checking emails: {e}")
         return []
 
-def classify_with_ollama(subject, body):
+def classify_with_ai(subject, body):
     prompt = f"""
     Clasifica la importancia del siguiente correo académico del 1 al 5.
     1: Spam o informativo irrelevante.
@@ -66,26 +65,20 @@ def classify_with_ollama(subject, body):
     """
     
     try:
-        response = requests.post(
-            f"{OLLAMA_URL}/api/generate",
-            json={
-                "model": MODEL,
-                "prompt": prompt,
-                "stream": False
-            }
-        )
-        result = response.json()
-        class_str = result.get("response", "").strip()
-        return int(class_str[0]) if class_str and class_str[0].isdigit() else 1
+        class_str = generate_response(prompt, system_prompt="Eres un clasificador de importancia de correos. Responde solo con un número del 1 al 5.")
+        if class_str:
+            class_str = class_str.strip()
+            return int(class_str[0]) if class_str[0].isdigit() else 1
+        return 1
     except Exception as e:
-        print(f"Ollama classification failed: {e}")
+        print(f"AI classification failed: {e}")
         return 1
 
 async def process_emails():
     print("Checking for new emails...")
     unread = get_unread_emails()
     for item in unread:
-        importance = classify_with_ollama(item['subject'], item['body'])
+        importance = classify_with_ai(item['subject'], item['body'])
         print(f"Email: {item['subject']} | Importance: {importance}")
         
         if importance >= 4:

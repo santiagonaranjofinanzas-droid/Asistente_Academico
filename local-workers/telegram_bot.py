@@ -9,6 +9,7 @@ from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 from supabase import create_client, Client
 from dotenv import load_dotenv
+from ai_service import generate_response
 
 load_dotenv()
 
@@ -17,9 +18,7 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 if TELEGRAM_CHAT_ID:
     TELEGRAM_CHAT_ID = int(TELEGRAM_CHAT_ID.strip())
-SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-OLLAMA_API = "http://127.0.0.1:11434/api/generate"
 
 # Initialize Supabase
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -27,19 +26,15 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-async def get_ollama_response(prompt: str) -> str:
-    """Gets a response from local Ollama."""
+async def get_ai_response(prompt: str) -> str:
+    """Gets a response from NVIDIA AI API."""
     try:
-        response = requests.post(OLLAMA_API, json={
-            "model": "llama3.2",
-            "prompt": prompt,
-            "stream": False
-        }, timeout=90)
-        if response.status_code == 200:
-            return response.json().get("response", "Lo siento, no pude procesar eso.")
+        res = generate_response(prompt)
+        if res and not res.startswith("Error"):
+            return res
+        return f"Lo siento, hubo un problema con la IA: {res}"
     except Exception as e:
         return f"Error de IA: {e}"
-    return "Ollama no respondió."
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Initial greeting."""
@@ -111,7 +106,7 @@ Tareas:
 {chr(10).join(task_summaries)}
 Responde brevemente en español, sé motivador y directo."""
 
-        ai_response = await get_ollama_response(prompt)
+        ai_response = await get_ai_response(prompt)
         await update.message.reply_text(f"🤖 *Consejo del Tutor IA*:\n\n{ai_response}", parse_mode='Markdown')
     except Exception as e:
         await update.message.reply_text(f"Error IA: {e}")
@@ -140,7 +135,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "?" in text or len(text.split()) > 8:
         # It's a conversation/question
         await update.message.reply_chat_action("typing")
-        ai_response = await get_ollama_response(f"Responde como un asistente académico de la ESPE: {text}")
+        ai_response = await get_ai_response(f"Responde como un asistente académico de la ESPE: {text}")
         await update.message.reply_text(ai_response)
     else:
         # It's a Quick Capture (Short phrase)
