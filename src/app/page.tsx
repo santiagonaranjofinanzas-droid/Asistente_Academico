@@ -139,14 +139,14 @@ export default function Dashboard() {
   const displayTasks = useMemo(() => {
     let filtered = tasks;
     
-    // Global week filter (optional: only for specific views)
-    if (view === 'deberes' || view === 'pruebas' || view === 'list') {
+    // Apply week filter ONLY to 'list' view as per user request
+    if (view === 'list') {
       const now = new Date();
       const weekStart = startOfWeek(now, { weekStartsOn: 1 });
       const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
       
       filtered = tasks.filter(t => {
-        if (!t.fecha_entrega) return true; // Keep tasks without date?
+        if (!t.fecha_entrega) return true;
         const d = new Date(t.fecha_entrega);
         return isWithinInterval(d, { start: weekStart, end: weekEnd });
       });
