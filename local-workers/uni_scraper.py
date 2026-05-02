@@ -76,7 +76,6 @@ def detect_task_type(title: str, materia: str) -> str:
     t = title.lower()
     
     # --- PRIORITY 1: Clear keywords for PRUEBAS ---
-    # These are almost always tests/quizzes even if AI is unsure
     prueba_keywords = ["prueba", "examen", "test", "quiz", "control de lectura", "leccion", "lección", "evaluación", "evaluacion", "cuestionario", "parcial"]
     if any(w in t for w in prueba_keywords):
         print(f"  [TYPE] Classified as 'prueba' by keyword: {title[:30]}")
@@ -114,7 +113,6 @@ def sanitize_filename(raw_name: str, fallback_ext: str = "") -> str:
     name = raw_name.strip().replace(" ", "_")
     for char in '<>:"/\\|?*\r\n\t':
         name = name.replace(char, '')
-    # Remove empty segments
     name = name.strip('._')
     if not name:
         name = f"documento_{datetime.datetime.now().strftime('%H%M%S')}"
@@ -123,15 +121,16 @@ def sanitize_filename(raw_name: str, fallback_ext: str = "") -> str:
     return name
 
 
+async def login_moodle(page):
+    """Perform login on Moodle."""
+    await page.goto(f"{URL}/login/index.php")
+    await page.fill("#username", USERNAME)
+    await page.fill("#password", PASSWORD)
+    await page.click("#loginbtn")
+    await page.wait_for_load_state("networkidle")
+    print("[SCRAPER] Logged in successfully.")
+
 async def run_scraper():
-    """
-    SECURITY POLICY: READ-ONLY SCRAPER
-    This scraper is strictly forbidden from:
-    1. Clicking 'Submit', 'Delete', or 'Edit' buttons for assignments.
-    2. Modifying any university files or data.
-    3. Uploading content to the Moodle platform.
-    It ONLY uses navigation and data extraction (innerText/getAttribute).
-    """
     if not SUPABASE_URL or not SUPABASE_KEY:
         print("Supabase credentials missing. Scraper will run in dry-run mode.")
         supabase: Client = None
@@ -141,351 +140,196 @@ async def run_scraper():
     async with async_playwright() as p:
         print(f"[SCRAPER] Launching for {URL}...")
         browser = await p.chromium.launch(headless=True)
-        # CRITICAL: accept_downloads must be True to download files
         context = await browser.new_context(accept_downloads=True)
         page = await context.new_page()
 
         try:
             # --- LOGIN ---
-            await page.goto(f"{URL}/login/index.php")
-            await page.fill("#username", USERNAME)
-            await page.fill("#password", PASSWORD)
-            await page.click("#loginbtn")
-            await page.wait_for_load_state("networkidle")
-            print("[SCRAPER] Logged in successfully.")
+            await login_moodle(page)
 
-            # --- NAVIGATE TO TIMELINE ---
-            await page.goto(f"{URL}/my/")
+            # --- POOL OF TASKS TO PROCESS ---
+            task_links_pool = set()
+            ids_moodle_encontrados = set()
+
+            # --- PHASE 1: TIMELINE ---
+            print("\n[SCRAPER] PHASE 1: Scraping Dashboard Timeline...")
+            await page.goto(f"{URL}/my/", wait_until="networkidle")
+            
+            # Set filter to "Todos"
             try:
-                await page.wait_for_selector('[data-region="event-list-item"]', timeout=30000)
-            except:
-                print("[SCRAPER] No active tasks found in Timeline.")
-                await send_notification("ℹ️ *Scraper ESPE*: No hay tareas pendientes en la línea de tiempo.")
-                return
+                filter_trigger = await page.query_selector('[data-region="timeline"] [data-action="filter-dropdown"]')
+                if not filter_trigger: filter_trigger = await page.query_selector('[data-action="timeline-filter-dropdown"]')
+                if filter_trigger:
+                    await filter_trigger.click(force=True)
+                    await page.wait_for_timeout(1000)
+                    all_opt = await page.query_selector("[aria-label='Todos opción de filtro']") or await page.query_selector("text='Todos'")
+                    if all_opt: 
+                        await all_opt.click(force=True)
+                        await page.wait_for_timeout(2000)
+            except: pass
 
-            # --- FORCE "ALL" FILTER ---
-            try:
-                dropdown = await page.query_selector('[data-action="timeline-filter-dropdown"]')
-                if dropdown:
-                    await dropdown.click(force=True, timeout=5000)
-                    await page.wait_for_timeout(500)
-                all_filter = await page.query_selector('[data-filtername="all"]')
-                if all_filter:
-                    await all_filter.click(force=True, timeout=5000)
-                    await page.wait_for_timeout(2000)
-            except Exception as e:
-                print(f"[SCRAPER] Filter audit skipped: {e}")
-
-            # --- LOAD ALL ITEMS ---
-            print("[SCRAPER] Loading all timeline items...")
+            # Load all Timeline items
             while True:
                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                await page.wait_for_timeout(1000)
-                try:
-                    more_btn = await page.query_selector('[data-action="more-events"]')
-                    if more_btn and await more_btn.is_visible():
-                        await more_btn.click()
-                        print("  [UI] Clicked 'More items'...")
-                        await page.wait_for_timeout(2000)
-                    else:
-                        break
-                except:
-                    break
+                more_btn = await page.query_selector('[data-action="more-events"]')
+                if more_btn and await more_btn.is_visible():
+                    await more_btn.click()
+                    await page.wait_for_timeout(2000)
+                else: break
 
-            events = await page.query_selector_all('[data-region="event-list-item"]')
-            tasks_found = []
-            ids_moodle_encontrados = set()
-            print(f"[SCRAPER] Found {len(events)} events in timeline.")
+            timeline_links = await page.query_selector_all('[data-region="event-list-item"] a[data-action="view-event"]')
+            for tlink in timeline_links:
+                href = await tlink.get_attribute("href")
+                if href: task_links_pool.add(href)
+            print(f"[SCRAPER] Found {len(timeline_links)} links in Timeline.")
 
-            for idx, event in enumerate(events):
-                # --- EXTRACT TITLE ---
-                title_elem = await event.query_selector("h6.event-name a")
-                title = await title_elem.inner_text() if title_elem else "Sin título"
-                print(f"\n--- [{idx+1}/{len(events)}] {title[:60]} ---")
+            # --- PHASE 2: COURSES ---
+            print("\n[SCRAPER] PHASE 2: Scraping all individual courses (The 'Montón' fix)...")
+            try:
+                await page.goto(f"{URL}/my/courses.php", wait_until="networkidle")
+                course_links = await page.query_selector_all('.course-listitem a.aalink, .coursebox .title a, [data-region="course-content"] a')
+                course_urls = []
+                for cl in course_links:
+                    curl = await cl.get_attribute("href")
+                    if curl and "/course/view.php?id=" in curl: course_urls.append(curl)
                 
-                # --- EXTRACT MATERIA ---
-                materia_info = await event.query_selector("small.mb-0")
-                materia_raw = await materia_info.inner_text() if materia_info else "General"
-                materia = "General"
-                if "·" in materia_raw:
-                    materia_part = materia_raw.split("·")[-1].strip()
-                    materia = materia_part.split("-")[-1].strip() if "-" in materia_part else materia_part
+                course_urls = list(set(course_urls))
+                print(f"[SCRAPER] Scanning {len(course_urls)} courses...")
                 
-                # --- EXTRACT MOODLE ID ---
-                link = await title_elem.get_attribute("href") if title_elem else ""
-                moodle_id = "".join(filter(str.isdigit, link)) if link else "0"
-                if moodle_id != "0":
+                for curl in course_urls:
+                    print(f"  [COURSE] Entering: {curl}")
+                    await page.goto(curl, wait_until="domcontentloaded")
+                    activity_links = await page.query_selector_all('a[href*="/mod/assign/view.php?id="], a[href*="/mod/quiz/view.php?id="]')
+                    for alink in activity_links:
+                        ahref = await alink.get_attribute("href")
+                        if ahref: task_links_pool.add(ahref.split('#')[0])
+            except Exception as e:
+                print(f"[SCRAPER] Course phase failed: {e}")
+
+            # --- PHASE 3: PROCESS ALL ---
+            task_links_to_process = list(task_links_pool)
+            print(f"\n[SCRAPER] TOTAL tasks to sync: {len(task_links_to_process)}")
+            tasks_synced = []
+
+                    # Clean link (remove fragment)
+                    link = link.split('#')[0]
+                    
+                    # Determine Moodle ID from link
+                    moodle_id = "".join(filter(str.isdigit, link.split("id=")[1].split("&")[0]))
+                    if not moodle_id: continue
                     ids_moodle_encontrados.add(moodle_id)
-                
-                # --- EXTRACT DATE ---
-                aria_label = await title_elem.get_attribute("aria-label") if title_elem else ""
-                fecha_str = ""
-                if "para" in aria_label:
-                    fecha_str = aria_label.split("para")[-1].strip()
-                if not fecha_str:
-                    fecha_elem = await event.query_selector("small:not(.mb-0)")
-                    fecha_str = await fecha_elem.inner_text() if fecha_elem else ""
-                
-                clean_fecha_str = fecha_str.replace('\t', ' ').replace('\n', ' ').replace(',', '').strip()
-                now = datetime.datetime.now()
-                tomorrow = now + datetime.timedelta(days=1)
-                if "Hoy" in clean_fecha_str:
-                    clean_fecha_str = clean_fecha_str.replace("Hoy", now.strftime("%d %B %Y"))
-                elif "Maana" in clean_fecha_str or "Mañana" in clean_fecha_str:
-                    clean_fecha_str = clean_fecha_str.replace("Maana", tomorrow.strftime("%d %B %Y")).replace("Mañana", tomorrow.strftime("%d %B %Y"))
-                if "202" not in clean_fecha_str:
-                    clean_fecha_str += f" {now.year}"
-                
-                parsed_date = dateparser.parse(clean_fecha_str, languages=['es'], settings={'PREFER_DATES_FROM': 'future'})
-                fecha_entrega = parsed_date.isoformat() if parsed_date else None
+                    
+                    print(f"\n--- [{idx+1}/{len(task_links_to_process)}] Processing ID: {moodle_id} ---")
+                    await page.goto(link, wait_until="networkidle", timeout=20000)
+                    
+                    # Basic Info
+                    title = ""
+                    title_elem = await page.query_selector("h2, .page-header-headings h1")
+                    if title_elem: title = await title_elem.inner_text()
+                    
+                    # --- FILTER SYSTEM MESSAGES ---
+                    if not title or "¿Desea acceder ahora" in title or "acceso" in title.lower():
+                        print(f"  [SKIP] System message detected: {title[:30]}")
+                        continue
 
-                # --- DETECT DELIVERY STATUS ---
-                action_btn = await event.query_selector("a.btn")
-                btn_text = await action_btn.inner_text() if action_btn else ""
-                is_delivered = "Editar entrega" in btn_text
-                
-                texto_extraido = ""
-                archivos_adjuntos = []
-                resumen_ia = ""
-                
-                # --- DEEP PARSING: Visit task page for description & files ---
-                if link and not is_delivered:
-                    try:
-                        task_page = await context.new_page()
-                        await task_page.goto(link, wait_until="networkidle", timeout=15000)
-                        
-                        # Get full description text
-                        for selector in ['.box.py-3.generalbox.boxaligncenter', '.intro', '#intro', '.submissionstatustable']:
-                            desc_elem = await task_page.query_selector(selector)
-                            if desc_elem:
-                                desc_text = await desc_elem.inner_text()
-                                if desc_text and len(desc_text.strip()) > 10:
-                                    texto_extraido += desc_text.strip() + "\n\n"
-                                    print(f"  [DESC] Extracted {len(desc_text)} chars from {selector}")
-                                    break
-                        
-                        # Find downloadable file links (multiple Moodle selectors)
-                        file_selectors = [
-                            '.fileuploadsubmission a',
-                            '.attachments a', 
-                            '.mod_assign_intro a[href*="pluginfile"]',
-                            'a[href*="pluginfile.php"]',
-                            '.resourceworkaround a'
-                        ]
-                        
-                        all_file_links = []
-                        for sel in file_selectors:
-                            links_found = await task_page.query_selector_all(sel)
-                            all_file_links.extend(links_found)
-                        
-                        # Deduplicate by href
-                        seen_urls = set()
-                        for fle in all_file_links:
-                            f_url = await fle.get_attribute('href')
-                            if not f_url or f_url in seen_urls:
+                    # --- IMPROVED MATERIA EXTRACTION ---
+                    materia = "General"
+                    breadcrumb = await page.query_selector(".breadcrumb")
+                    if breadcrumb:
+                        items = await breadcrumb.query_selector_all("li")
+                        # Usually: Home > Courses > Course Name > Task Name
+                        # We want 'Course Name'. It's typically at index 2 or 3.
+                        for i in range(len(items)):
+                            txt = await items[i].inner_text()
+                            # Skip common non-course breadcrumbs
+                            if any(x in txt for x in ["Principal", "Área personal", "Mis cursos", "Dashboard", "Home", "Courses"]):
                                 continue
-                            seen_urls.add(f_url)
-                            
-                            f_name = await fle.inner_text()
-                            f_name = f_name.strip() if f_name else ""
-                            
-                            # Only process actual document links
-                            is_document = any(ext in f_url.lower() for ext in ['.pdf', '.docx', '.doc', '.pptx', '.xlsx'])
-                            is_pluginfile = 'pluginfile.php' in f_url
-                            
-                            if not (is_document or is_pluginfile):
-                                continue
-                            
-                            print(f"  [FILE] Found: {f_name or f_url[:60]}")
-                            
-                            try:
-                                # Direct download via navigation (more reliable than click)
-                                download_url = f_url
-                                if 'forcedownload' not in download_url:
-                                    separator = '&' if '?' in download_url else '?'
-                                    download_url += f"{separator}forcedownload=1"
-                                
-                                async with task_page.expect_download(timeout=15000) as download_info:
-                                    await task_page.evaluate(f'window.location.href = "{download_url}"')
-                                download = await download_info.value
-                                
-                                # Build a clean filename
-                                suggested = download.suggested_filename or ""
-                                ext = os.path.splitext(suggested)[1].lower()
-                                
-                                if f_name and len(f_name) > 3:
-                                    clean_fname = sanitize_filename(f_name, ext)
-                                else:
-                                    clean_fname = sanitize_filename(suggested)
-                                
-                                temp_path = os.path.join(os.getcwd(), "temp_downloads", clean_fname)
-                                os.makedirs(os.path.dirname(temp_path), exist_ok=True)
-                                await download.save_as(temp_path)
-                                print(f"  [FILE] Downloaded: {clean_fname} ({os.path.getsize(temp_path)} bytes)")
-                                
-                                # Extract text
-                                file_text = extract_text_from_file(temp_path)
-                                if file_text:
-                                    texto_extraido += f"\n[Archivo: {clean_fname}]:\n{file_text}\n"
-                                    print(f"  [FILE] Extracted {len(file_text)} chars of text")
-                                
-                                # Upload to Supabase Storage
-                                if supabase:
-                                    storage_path = f"{moodle_id}/{clean_fname}"
-                                    content_type = mimetypes.guess_type(clean_fname)[0] or "application/octet-stream"
-                                    try:
-                                        with open(temp_path, "rb") as f:
-                                            supabase.storage.from_("documentos_espe").upload(
-                                                path=storage_path,
-                                                file=f,
-                                                file_options={"content-type": content_type}
-                                            )
-                                        print(f"  [STORAGE] Uploaded to bucket: {storage_path}")
-                                    except Exception as up_e:
-                                        if "Duplicate" in str(up_e) or "already exists" in str(up_e).lower():
-                                            print(f"  [STORAGE] Already exists: {storage_path}")
-                                        else:
-                                            print(f"  [STORAGE] Upload error: {up_e}")
-                                    
-                                    public_url = supabase.storage.from_("documentos_espe").get_public_url(storage_path)
-                                    archivos_adjuntos.append({
-                                        "nombre": clean_fname,
-                                        "url": public_url
-                                    })
-                                
-                                # Cleanup temp file
-                                try:
-                                    os.remove(temp_path)
-                                except:
-                                    pass
-                                    
-                            except Exception as dl_err:
-                                print(f"  [FILE] Download failed: {dl_err}")
-                                # Fallback: just store the URL directly
-                                if f_url:
-                                    archivos_adjuntos.append({
-                                        "nombre": f_name or "Documento",
-                                        "url": f_url
-                                    })
-                        
-                        await task_page.close()
-                    except Exception as e:
-                        print(f"  [DEEP] Failed: {e}")
-                
-                # --- TRUNCATE TEXT FOR SAFETY ---
-                texto_extraido = texto_extraido[:3000]
-                
-                # --- GENERATE AI SUMMARY LOCALLY ---
-                if texto_extraido and not is_delivered:
-                    resumen_ia = generate_ai_summary(title, materia, f"Fecha: {fecha_str}", texto_extraido)
-                
-                # --- BUILD TASK DATA ---
-                task_data = {
-                    "id_moodle": moodle_id,
-                    "titulo": title,
-                    "materia": materia,
-                    "descripcion": f"Fecha original: {fecha_str} | Info: {materia_raw}",
-                    "estado": "entregada" if is_delivered else "por_empezar",
-                    "archivada": is_delivered,
-                    "fecha_entrega": fecha_entrega,
-                    "texto_extraido": texto_extraido,
-                    "archivos_adjuntos": json.dumps(archivos_adjuntos) if archivos_adjuntos else "[]",
-                    "resumen_ia": resumen_ia,
-                    "tipo": detect_task_type(title, materia),
-                }
-                
-                # --- SAVE TO SUPABASE ---
-                if supabase:
+                            if i < len(items) - 1: # The last one is the task itself
+                                materia = txt.strip()
+                                # Clean up common course codes (e.g. 27817-NAME -> NAME)
+                                if "-" in materia:
+                                    materia = materia.split("-", 1)[-1].strip()
+                                break
+                    
+                    if materia == "General":
+                        # Try page header as fallback
+                        header = await page.query_selector(".page-header-headings h1")
+                        if header:
+                            h_txt = await header.inner_text()
+                            if h_txt and h_txt != title:
+                                materia = h_txt.strip()
+                    
+                    is_quiz = "/mod/quiz/" in link
+                    date_text = ""
+                    if is_quiz:
+                        info = await page.query_selector(".quizinfo")
+                        if info: date_text = await info.inner_text()
+                    else:
+                        table = await page.query_selector(".submissionstatustable")
+                        if table: date_text = await table.inner_text()
+                    
+                    is_delivered = any(x in date_text for x in ["Enviado", "Calificado", "Finalizado", "Hecho", "Terminado"])
+                    
+                    # Description and Files (same logic as before but simplified for readability)
+                    description = ""
+                    desc_elem = await page.query_selector(".box.py-3.generalbox, .instructions, #intro")
+                    if desc_elem: description = await desc_elem.inner_text()
+                    
+                    # --- DATE PARSING (Restored robust logic) ---
+                    fecha_entrega = None
                     try:
-                        # Check if task already exists
-                        existing = supabase.table("tareas").select("estado, archivada, checklist, resumen_ia").eq("id_moodle", moodle_id).execute()
+                        clean_date_str = date_text.replace('\t', ' ').replace('\n', ' ').replace(',', '').strip()
+                        now = datetime.datetime.now()
+                        tomorrow = now + datetime.timedelta(days=1)
+                        if "Hoy" in clean_date_str: clean_date_str = clean_date_str.replace("Hoy", now.strftime("%d %B %Y"))
+                        elif "Mañana" in clean_date_str: clean_date_str = clean_date_str.replace("Mañana", tomorrow.strftime("%d %B %Y"))
+                        if "202" not in clean_date_str: clean_date_str += f" {now.year}"
                         
-                        if existing.data and len(existing.data) > 0:
-                            old_task = existing.data[0]
-                            # Preserve user state if not newly delivered in Moodle
-                            if not is_delivered and old_task.get("estado") not in [None, "por_empezar"]:
-                                task_data["estado"] = old_task.get("estado")
-                                task_data["archivada"] = old_task.get("archivada")
-                            
-                            # Always preserve checklist if it exists
-                            if old_task.get("checklist"):
-                                task_data["checklist"] = old_task.get("checklist")
-                                
-                            # Preserve AI summary if we didn't generate a new one
-                            if not resumen_ia and old_task.get("resumen_ia"):
-                                task_data["resumen_ia"] = old_task.get("resumen_ia")
+                        parsed_date = dateparser.parse(clean_date_str, languages=['es'], settings={'PREFER_DATES_FROM': 'future'})
+                        if parsed_date: fecha_entrega = parsed_date.isoformat()
+                    except: pass
 
+                    # Upsert
+                    task_data = {
+                        "id_moodle": moodle_id,
+                        "titulo": title or "Tarea",
+                        "materia": materia,
+                        "descripcion": description[:2000],
+                        "estado": "entregada" if is_delivered else "por_empezar",
+                        "archivada": is_delivered,
+                        "fecha_entrega": fecha_entrega,
+                        "tipo": detect_task_type(title, materia)
+                    }
+                    
+                    if supabase:
                         supabase.table("tareas").upsert(task_data, on_conflict="id_moodle").execute()
-                        status = "ENTREGADA" if is_delivered else "PENDIENTE"
-                        print(f"  [DB] Synced [{status}] | Materia: {materia}")
-                    except Exception as e:
-                        # Fallback: try without new columns
-                        print(f"  [DB] Full save failed: {e}")
-                        fallback = {k: v for k, v in task_data.items() if k not in ['texto_extraido', 'archivos_adjuntos', 'resumen_ia', 'tipo']}
-                        try:
-                            supabase.table("tareas").upsert(fallback, on_conflict="id_moodle").execute()
-                            print(f"  [DB] Fallback save OK")
-                        except Exception as e2:
-                            print(f"  [DB] Fallback also failed: {e2}")
-                
-                tasks_found.append(task_data)
+                        print(f"  [DB] Synced: {title[:40]}")
+                    
+                    tasks_synced.append(task_data)
+                except Exception as e:
+                    print(f"  [ERROR] ID {link}: {e}")
 
-            # --- FINAL SUMMARY ---
-            print(f"\n{'='*50}")
-            print(f"[SCRAPER] Completed: {len(tasks_found)} tasks processed.")
-            files_count = sum(len(json.loads(t.get('archivos_adjuntos', '[]'))) for t in tasks_found)
-            ai_count = sum(1 for t in tasks_found if t.get('resumen_ia'))
-            print(f"[SCRAPER] Files found: {files_count} | AI summaries: {ai_count}")
-            
-            # --- CLEANUP PHASE (Sync deletions) ---
+            # --- CLEANUP PHASE (Safe verification) ---
             num_limpiados = 0
             if supabase and len(ids_moodle_encontrados) > 0:
-                print(f"\n[SYNC] Inactive tasks cleanup starting...")
-                try:
-                    # Fetch all active (not archived) tasks from DB
-                    res = supabase.table("tareas").select("id_moodle, titulo, descripcion").eq("archivada", False).execute()
-                    tasks_in_db = res.data or []
-                    
-                    ids_to_archive = []
-                    for t_db in tasks_in_db:
-                        m_id = t_db.get("id_moodle")
-                        if m_id and m_id not in ids_moodle_encontrados:
-                            ids_to_archive.append(m_id)
-                    
-                    if ids_to_archive:
-                        print(f"  [SYNC] Found {len(ids_to_archive)} tasks in DB no longer in Moodle.")
-                        for m_id in ids_to_archive:
-                            # Mark as archived and update state to 'entregada' (cleanest way to hide)
-                            supabase.table("tareas").update({
-                                "archivada": True,
-                                "estado": "entregada",
-                                "descripcion": "(Auto-archivada por falta en Moodle)"
-                            }).eq("id_moodle", m_id).execute()
+                print(f"\n[SYNC] Verifying deletions for tasks not found in this run...")
+                res = supabase.table("tareas").select("id_moodle, titulo").eq("archivada", False).execute()
+                for t_db in (res.data or []):
+                    mid = t_db.get("id_moodle")
+                    if mid and mid not in ids_moodle_encontrados and not mid.startswith("msg_"):
+                        print(f"  [VERIFY] Checking if {mid} still exists...")
+                        await page.goto(f"{URL}/mod/assign/view.php?id={mid}", wait_until="domcontentloaded")
+                        if "No se pudo encontrar" in await page.content():
+                            supabase.table("tareas").update({"archivada": True, "estado": "entregada"}).eq("id_moodle", mid).execute()
                             num_limpiados += 1
-                        print(f"  [SYNC] Cleaned up {num_limpiados} tasks.")
-                except Exception as sync_e:
-                    print(f"  [SYNC] Error during cleanup: {sync_e}")
-
-            if tasks_found:
-                clean_msg = f"\n🧹 Limpieza: {num_limpiados} archivadas (no están en Moodle)." if num_limpiados > 0 else ""
-                await send_notification(
-                    f"✅ *Scraper ESPE*: {len(tasks_found)} tareas sincronizadas.{clean_msg}\n"
-                    f"📎 Archivos: {files_count} | 🤖 Resúmenes IA: {ai_count}"
-                )
+            
+            if tasks_synced:
+                await send_notification(f"✅ *Scraper ESPE*: {len(tasks_synced)} tareas sincronizadas.\n🧹 Limpieza: {num_limpiados} archivadas.")
 
         except Exception as e:
             print(f"[SCRAPER] Critical error: {e}")
-            import traceback
-            traceback.print_exc()
-            await send_notification(f"⚠️ *Error Scraper*: {str(e)[:100]}")
         finally:
             await browser.close()
-            # Cleanup temp dir
-            try:
-                import shutil
-                shutil.rmtree(os.path.join(os.getcwd(), "temp_downloads"), ignore_errors=True)
-            except:
-                pass
 
 if __name__ == "__main__":
     asyncio.run(run_scraper())
