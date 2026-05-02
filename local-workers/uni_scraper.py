@@ -177,19 +177,24 @@ async def run_scraper():
                 print(f"[SCRAPER] Filter audit skipped: {e}")
 
             # --- LOAD ALL ITEMS ---
-            for _ in range(5):
+            print("[SCRAPER] Loading all timeline items...")
+            while True:
                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                await page.wait_for_timeout(1000)
                 try:
                     more_btn = await page.query_selector('[data-action="more-events"]')
                     if more_btn and await more_btn.is_visible():
                         await more_btn.click()
-                        await page.wait_for_timeout(1500)
+                        print("  [UI] Clicked 'More items'...")
+                        await page.wait_for_timeout(2000)
+                    else:
+                        break
                 except:
-                    pass
-                await asyncio.sleep(0.5)
+                    break
 
             events = await page.query_selector_all('[data-region="event-list-item"]')
             tasks_found = []
+            ids_moodle_encontrados = set()
             print(f"[SCRAPER] Found {len(events)} events in timeline.")
 
             for idx, event in enumerate(events):
@@ -209,6 +214,8 @@ async def run_scraper():
                 # --- EXTRACT MOODLE ID ---
                 link = await title_elem.get_attribute("href") if title_elem else ""
                 moodle_id = "".join(filter(str.isdigit, link)) if link else "0"
+                if moodle_id != "0":
+                    ids_moodle_encontrados.add(moodle_id)
                 
                 # --- EXTRACT DATE ---
                 aria_label = await title_elem.get_attribute("aria-label") if title_elem else ""
@@ -430,9 +437,39 @@ async def run_scraper():
             ai_count = sum(1 for t in tasks_found if t.get('resumen_ia'))
             print(f"[SCRAPER] Files found: {files_count} | AI summaries: {ai_count}")
             
+            # --- CLEANUP PHASE (Sync deletions) ---
+            num_limpiados = 0
+            if supabase and len(ids_moodle_encontrados) > 0:
+                print(f"\n[SYNC] Inactive tasks cleanup starting...")
+                try:
+                    # Fetch all active (not archived) tasks from DB
+                    res = supabase.table("tareas").select("id_moodle, titulo, descripcion").eq("archivada", False).execute()
+                    tasks_in_db = res.data or []
+                    
+                    ids_to_archive = []
+                    for t_db in tasks_in_db:
+                        m_id = t_db.get("id_moodle")
+                        if m_id and m_id not in ids_moodle_encontrados:
+                            ids_to_archive.append(m_id)
+                    
+                    if ids_to_archive:
+                        print(f"  [SYNC] Found {len(ids_to_archive)} tasks in DB no longer in Moodle.")
+                        for m_id in ids_to_archive:
+                            # Mark as archived and update state to 'entregada' (cleanest way to hide)
+                            supabase.table("tareas").update({
+                                "archivada": True,
+                                "estado": "entregada",
+                                "descripcion": "(Auto-archivada por falta en Moodle)"
+                            }).eq("id_moodle", m_id).execute()
+                            num_limpiados += 1
+                        print(f"  [SYNC] Cleaned up {num_limpiados} tasks.")
+                except Exception as sync_e:
+                    print(f"  [SYNC] Error during cleanup: {sync_e}")
+
             if tasks_found:
+                clean_msg = f"\n🧹 Limpieza: {num_limpiados} archivadas (no están en Moodle)." if num_limpiados > 0 else ""
                 await send_notification(
-                    f"✅ *Scraper ESPE*: {len(tasks_found)} tareas sincronizadas.\n"
+                    f"✅ *Scraper ESPE*: {len(tasks_found)} tareas sincronizadas.{clean_msg}\n"
                     f"📎 Archivos: {files_count} | 🤖 Resúmenes IA: {ai_count}"
                 )
 

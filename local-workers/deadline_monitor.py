@@ -6,7 +6,7 @@ import datetime
 import json
 from telegram_notifier import send_notification
 
-load_dotenv()
+load_dotenv(override=True)
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
@@ -58,13 +58,13 @@ async def check_deadlines():
             task_notifs["24h"] = True
             print(f"Sent 24h alert for {task_id}")
             
-        # 15 Minute Warning for Exams/Controls
-        is_exam = any(kw in titulo.lower() for kw in ["prueba", "examen", "control de lectura"])
-        if is_exam and 0 < hours_left <= 0.26 and not task_notifs.get("15m"): # 0.26h is ~15.6 mins
-            msg = f"📚 *RECORDATORIO PRÓXIMO*: Tienes un *{titulo}* de {materia} en 15 minutos. ¡Prepárate!"
+        # 10 Minute Warning for Exams/Controls
+        is_exam = any(kw in titulo.lower() for kw in ["prueba", "examen", "control de lectura", "leccion", "lección"])
+        if is_exam and 0 < hours_left <= 0.17 and not task_notifs.get("10m"): # 0.17h is ~10.2 mins
+            msg = f"📚 *RECORDATORIO PRÓXIMO*: Tienes un *{titulo}* de {materia} en 10 minutos. ¡Prepárate!"
             await send_notification(msg)
-            task_notifs["15m"] = True
-            print(f"Sent 15m alert for {task_id}")
+            task_notifs["10m"] = True
+            print(f"Sent 10m alert for {task_id}")
             
         # 2 Hour Warning (Critical)
         elif 0 < hours_left < 2 and not task_notifs.get("2h"):

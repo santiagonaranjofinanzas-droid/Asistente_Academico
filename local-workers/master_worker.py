@@ -6,7 +6,7 @@ import datetime
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
-load_dotenv()
+load_dotenv(override=True)
 
 # Configuration
 CHECK_INTERVAL = 60  # Check every 60 seconds

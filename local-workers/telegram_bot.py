@@ -10,14 +10,18 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, Con
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from ai_service import generate_response
+from email_processor import get_unread_emails, classify_with_ai
 
-load_dotenv()
+load_dotenv(override=True)
 
 # Configuration
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+if TELEGRAM_TOKEN:
+    print(f"[DEBUG] Usando token que termina en: ...{TELEGRAM_TOKEN[-5:]}")
 if TELEGRAM_CHAT_ID:
     TELEGRAM_CHAT_ID = int(TELEGRAM_CHAT_ID.strip())
+SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
 # Initialize Supabase
@@ -111,6 +115,32 @@ Responde brevemente en español, sé motivador y directo."""
     except Exception as e:
         await update.message.reply_text(f"Error IA: {e}")
 
+async def check_emails(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Checks for important unread emails."""
+    if update.effective_user.id != TELEGRAM_CHAT_ID: return
+    await update.message.reply_chat_action("typing")
+    try:
+        unread = get_unread_emails()
+        if not unread:
+            await update.message.reply_text("📬 No hay correos nuevos sin leer.")
+            return
+
+        important_emails = []
+        for item in unread:
+            importance = classify_with_ai(item['subject'], item['body'])
+            if importance >= 3:
+                important_emails.append(f"🔸 *[{importance}/5]* {item['subject']}")
+        
+        if not important_emails:
+            await update.message.reply_text(f"📬 Tienes {len(unread)} correos nuevos, pero ninguno parece crítico.")
+            return
+
+        msg = "📩 *Correos Importantes Recientes*\n\n" + "\n".join(important_emails)
+        msg += "\n\n_Revisa tu Gmail para más detalles._"
+        await update.message.reply_text(msg, parse_mode='Markdown')
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error al revisar correos: {e}")
+
 async def distribute_work(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Suggests how to split a group task."""
     if update.effective_user.id != TELEGRAM_CHAT_ID: return
@@ -129,6 +159,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if any(q in text_lower for q in ["recomienda", "ayuda", "recomiendame", "por cual empiezo"]):
         await recommend_start(update, context)
+        return
+
+    if any(q in text_lower for q in ["correo", "email", "mensaje", "llego algo"]):
+        await check_emails(update, context)
         return
 
     # 2. IA Help vs Quick Capture
@@ -178,6 +212,7 @@ def main():
     app.add_handler(CommandHandler("tareas", view_tasks))
     app.add_handler(CommandHandler("recomendar", recommend_start))
     app.add_handler(CommandHandler("distribuir", distribute_work))
+    app.add_handler(CommandHandler("correos", check_emails))
     app.add_handler(CommandHandler("ayuda", help_command))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
 
