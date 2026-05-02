@@ -73,23 +73,23 @@ Materia: {materia}
 
 def detect_task_type(title: str, materia: str) -> str:
     """Categorize task robustly using AI or keywords."""
-    # Intentar con IA primero
-    ai_type = generate_ai_type(title, materia)
-    if ai_type in ["prueba", "deber"]:
-        print(f"  [IA-TYPE] Clasificado como: {ai_type}")
-        return ai_type
-        
-    print("  [IA-TYPE] Fallback a palabras clave")
     t = title.lower()
     
-    # Si explícitamente dice tarea o deber
-    if "tarea" in t or "deber" in t:
-        if not "control de lectura" in t:
-            return "deber"
-
-    # Pruebas, Exámenes, Controles de lectura
-    if any(w in t for w in ["prueba", "examen", "test", "quiz", "control de lectura", "leccion", "lección"]):
+    # --- PRIORITY 1: Clear keywords for PRUEBAS ---
+    # These are almost always tests/quizzes even if AI is unsure
+    prueba_keywords = ["prueba", "examen", "test", "quiz", "control de lectura", "leccion", "lección", "evaluación", "evaluacion", "cuestionario", "parcial"]
+    if any(w in t for w in prueba_keywords):
+        print(f"  [TYPE] Classified as 'prueba' by keyword: {title[:30]}")
         return "prueba"
+
+    # --- PRIORITY 2: AI Classification ---
+    ai_type = generate_ai_type(title, materia)
+    if ai_type in ["prueba", "deber"]:
+        print(f"  [IA-TYPE] Classified as: {ai_type}")
+        return ai_type
+        
+    # --- PRIORITY 3: Fallback for Deberes ---
+    print("  [TYPE] Fallback to 'deber'")
     return "deber"
 
 

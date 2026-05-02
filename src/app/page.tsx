@@ -123,17 +123,17 @@ export default function Dashboard() {
   };
 
   const getTaskType = (t: any) => {
-    if (t.tipo) return t.tipo;
+    // If it's explicitly set in DB to 'prueba', trust it.
+    // If it's set to 'deber', double check the title just in case.
     const title = t.titulo?.toLowerCase() || '';
-    
-    if ((title.includes('tarea') || title.includes('deber')) && !title.includes('control de lectura')) {
-      return 'deber';
-    }
+    const pruebaKeywords = ['prueba', 'examen', 'test', 'quiz', 'control de lectura', 'leccion', 'lección', 'evaluación', 'evaluacion', 'cuestionario', 'parcial'];
+    const isActuallyPrueba = pruebaKeywords.some(kw => title.includes(kw));
 
-    if (title.includes('prueba') || title.includes('examen') || title.includes('test') || title.includes('quiz') || title.includes('control de lectura') || title.includes('leccion') || title.includes('lección')) {
+    if (t.tipo === 'prueba' || (t.tipo === 'deber' && isActuallyPrueba)) {
       return 'prueba';
     }
-    return 'deber';
+    
+    return t.tipo || 'deber';
   };
 
   const displayTasks = useMemo(() => {
