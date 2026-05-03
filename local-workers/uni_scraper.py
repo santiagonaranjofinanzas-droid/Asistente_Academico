@@ -121,14 +121,36 @@ def sanitize_filename(raw_name: str, fallback_ext: str = "") -> str:
     return name
 
 
+async def take_screenshot(page, name):
+    """Helper to save a screenshot for debugging."""
+    os.makedirs("debug_screenshots", exist_ok=True)
+    timestamp = datetime.datetime.now().strftime("%H%M%S")
+    path = f"debug_screenshots/{name}_{timestamp}.png"
+    await page.screenshot(path=path)
+    print(f"  [DEBUG] Screenshot saved: {path}")
+
 async def login_moodle(page):
-    """Perform login on Moodle."""
-    await page.goto(f"{URL}/login/index.php")
+    """Perform login on Moodle with verification."""
+    print(f"[SCRAPER] Navigating to login...")
+    await page.goto(f"{URL}/login/index.php", wait_until="networkidle")
+    
+    # Check if already logged in
+    if await page.query_selector('.userpicture'):
+        print("[SCRAPER] Already logged in.")
+        return True
+
     await page.fill("#username", USERNAME)
     await page.fill("#password", PASSWORD)
     await page.click("#loginbtn")
     await page.wait_for_load_state("networkidle")
-    print("[SCRAPER] Logged in successfully.")
+    
+    if await page.query_selector('.userpicture'):
+        print("[SCRAPER] Logged in successfully.")
+        return True
+    else:
+        print("[SCRAPER] Login failed!")
+        await take_screenshot(page, "login_failed")
+        return False
 
 async def run_scraper():
     if not SUPABASE_URL or not SUPABASE_KEY:
@@ -150,12 +172,12 @@ async def run_scraper():
             # --- POOL OF TASKS TO PROCESS ---
             task_links_pool = set()
             ids_moodle_encontrados = set()
+            course_map = {} # course_id -> full_name
 
             # --- PHASE 1: TIMELINE ---
             print("\n[SCRAPER] PHASE 1: Scraping Dashboard Timeline...")
             await page.goto(f"{URL}/my/", wait_until="networkidle")
             
-            # Set filter to "Todos"
             try:
                 filter_trigger = await page.query_selector('[data-region="timeline"] [data-action="filter-dropdown"]')
                 if not filter_trigger: filter_trigger = await page.query_selector('[data-action="timeline-filter-dropdown"]')
@@ -168,7 +190,6 @@ async def run_scraper():
                         await page.wait_for_timeout(2000)
             except: pass
 
-            # Load all Timeline items
             while True:
                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                 more_btn = await page.query_selector('[data-action="more-events"]')
@@ -184,37 +205,95 @@ async def run_scraper():
             print(f"[SCRAPER] Found {len(timeline_links)} links in Timeline.")
 
             # --- PHASE 2: COURSES ---
-            print("\n[SCRAPER] PHASE 2: Scraping all individual courses (The 'Montón' fix)...")
+            print("\n[SCRAPER] PHASE 2: Scraping all individual courses (Deep Scrape)...")
             try:
-                await page.goto(f"{URL}/my/courses.php", wait_until="networkidle")
-                course_links = await page.query_selector_all('.course-listitem a.aalink, .coursebox .title a, [data-region="course-content"] a')
-                course_urls = []
-                for cl in course_links:
-                    curl = await cl.get_attribute("href")
-                    if curl and "/course/view.php?id=" in curl: course_urls.append(curl)
+                await page.goto(f"{URL}/my/courses.php", wait_until="networkidle", timeout=30000)
+                # Broader selectors for different Moodle themes
+                selectors = [
+                    '.course-listitem', 
+                    '.coursebox', 
+                    '[data-region="course-content"] [data-courseid]',
+                    '.dashboard-card-deck .dashboard-card',
+                    '#frontpage-course-list .coursebox'
+                ]
                 
-                course_urls = list(set(course_urls))
-                print(f"[SCRAPER] Scanning {len(course_urls)} courses...")
+                course_items = []
+                for sel in selectors:
+                    items = await page.query_selector_all(sel)
+                    if items:
+                        print(f"  [UI] Found {len(items)} course items using selector: {sel}")
+                        course_items = items
+                        break
                 
-                for curl in course_urls:
-                    print(f"  [COURSE] Entering: {curl}")
-                    await page.goto(curl, wait_until="domcontentloaded")
-                    activity_links = await page.query_selector_all('a[href*="/mod/assign/view.php?id="], a[href*="/mod/quiz/view.php?id="]')
-                    for alink in activity_links:
-                        ahref = await alink.get_attribute("href")
-                        if ahref: task_links_pool.add(ahref.split('#')[0])
+                if not course_items:
+                    print("  [WARNING] No course items found with primary selectors. Trying fallback links...")
+                    course_items = await page.query_selector_all('a[href*="/course/view.php?id="]')
+
+                for item in course_items:
+                    # Try to find the link within the item, or the item itself if it's a link
+                    link_elem = await item.query_selector('a.aalink, .title a, a[href*="/course/view.php?id="]')
+                    if not link_elem and await item.get_attribute("href") and "/course/view.php?id=" in await item.get_attribute("href"):
+                        link_elem = item
+                    
+                    if link_elem:
+                        curl = await link_elem.get_attribute("href")
+                        cname = await link_elem.inner_text()
+                        
+                        if curl and "id=" in curl:
+                            cid = curl.split("id=")[1].split("&")[0]
+                            # Robust cleaning: remove common prefixes/codes
+                            clean_name = cname.strip().replace("\n", " ")
+                            # Remove "Nombre del curso" if present
+                            import re
+                            clean_name = re.sub(r'^Nombre del curso\s*', '', clean_name, flags=re.IGNORECASE)
+                            
+                            # Remove typical patterns like [27817] or "202650 - "
+                            clean_name = re.sub(r'\[\d+\]\s*', '', clean_name)
+                            clean_name = re.sub(r'^\d+[-\s]+', '', clean_name)
+                            
+                            # Deduplicate if name appears twice (sentence level)
+                            s_words = clean_name.split()
+                            if len(s_words) >= 4:
+                                mid = len(s_words) // 2
+                                first_half = " ".join(s_words[:mid]).lower()
+                                second_half = " ".join(s_words[mid:]).lower()
+                                if first_half in second_half or second_half in first_half:
+                                    clean_name = " ".join(s_words[mid:])
+                            
+                            if " - " in clean_name: clean_name = clean_name.split(" - ", 1)[-1]
+                            
+                            course_map[cid] = clean_name.strip()
+                            # Print with utf-8 encoding for logs
+                            print(f"    [MAP] {cid} -> {course_map[cid]}")
+                
+                print(f"[SCRAPER] Course Map ready with {len(course_map)} subjects.")
+                
+                # Scan each course for activities
+                for cid in list(course_map.keys()):
+                    curl = f"{URL}/course/view.php?id={cid}"
+                    print(f"  [COURSE] Scanning: {course_map[cid]}...")
+                    try:
+                        await page.goto(curl, wait_until="domcontentloaded", timeout=15000)
+                        # Extract all activity links
+                        activity_links = await page.query_selector_all('a[href*="/mod/assign/view.php?id="], a[href*="/mod/quiz/view.php?id="]')
+                        for alink in activity_links:
+                            ahref = await alink.get_attribute("href")
+                            if ahref: task_links_pool.add(ahref.split('#')[0])
+                    except Exception as ce:
+                        print(f"    [COURSE] Skip {cid}: {ce}")
             except Exception as e:
                 print(f"[SCRAPER] Course phase failed: {e}")
+                await take_screenshot(page, "course_phase_error")
 
             # --- PHASE 3: PROCESS ALL ---
             task_links_to_process = list(task_links_pool)
             print(f"\n[SCRAPER] TOTAL tasks to sync: {len(task_links_to_process)}")
             tasks_synced = []
 
-                    # Clean link (remove fragment)
+            for idx, link in enumerate(task_links_to_process):
+                try:
+                    # Clean link
                     link = link.split('#')[0]
-                    
-                    # Determine Moodle ID from link
                     moodle_id = "".join(filter(str.isdigit, link.split("id=")[1].split("&")[0]))
                     if not moodle_id: continue
                     ids_moodle_encontrados.add(moodle_id)
@@ -227,38 +306,50 @@ async def run_scraper():
                     title_elem = await page.query_selector("h2, .page-header-headings h1")
                     if title_elem: title = await title_elem.inner_text()
                     
-                    # --- FILTER SYSTEM MESSAGES ---
                     if not title or "¿Desea acceder ahora" in title or "acceso" in title.lower():
                         print(f"  [SKIP] System message detected: {title[:30]}")
                         continue
 
-                    # --- IMPROVED MATERIA EXTRACTION ---
+                    # --- ROBUST MATERIA EXTRACTION ---
                     materia = "General"
-                    breadcrumb = await page.query_selector(".breadcrumb")
-                    if breadcrumb:
-                        items = await breadcrumb.query_selector_all("li")
-                        # Usually: Home > Courses > Course Name > Task Name
-                        # We want 'Course Name'. It's typically at index 2 or 3.
-                        for i in range(len(items)):
-                            txt = await items[i].inner_text()
-                            # Skip common non-course breadcrumbs
-                            if any(x in txt for x in ["Principal", "Área personal", "Mis cursos", "Dashboard", "Home", "Courses"]):
-                                continue
-                            if i < len(items) - 1: # The last one is the task itself
-                                materia = txt.strip()
-                                # Clean up common course codes (e.g. 27817-NAME -> NAME)
-                                if "-" in materia:
-                                    materia = materia.split("-", 1)[-1].strip()
+                    
+                    # Try to find course ID on the current page to use the map
+                    current_course_id = ""
+                    # 1. From breadcrumbs link
+                    course_breadcrumb = await page.query_selector('li.breadcrumb-item a[href*="/course/view.php?id="]')
+                    if course_breadcrumb:
+                        cb_href = await course_breadcrumb.get_attribute("href")
+                        if "id=" in cb_href:
+                            current_course_id = cb_href.split("id=")[1].split("&")[0]
+                    
+                    # 2. From page body or other links if breadcrumb failed
+                    if not current_course_id:
+                        any_course_link = await page.query_selector('a[href*="/course/view.php?id="]')
+                        if any_course_link:
+                            ac_href = await any_course_link.get_attribute("href")
+                            current_course_id = ac_href.split("id=")[1].split("&")[0]
+
+                    # Use map if ID found
+                    if current_course_id in course_map:
+                        materia = course_map[current_course_id]
+                    else:
+                        # Fallback to breadcrumb text if ID not in map (should be rare)
+                        breadcrumb = await page.query_selector(".breadcrumb")
+                        if breadcrumb:
+                            items = await breadcrumb.query_selector_all("li")
+                            for i in range(len(items) - 2, -1, -1):
+                                txt = (await items[i].inner_text()).strip()
+                                if not txt or any(x in txt.lower() for x in ["principal", "área personal", "mis cursos", "dashboard", "home", "parcial", "unidad", "semana"]):
+                                    continue
+                                materia = txt
                                 break
                     
-                    if materia == "General":
-                        # Try page header as fallback
-                        header = await page.query_selector(".page-header-headings h1")
-                        if header:
-                            h_txt = await header.inner_text()
-                            if h_txt and h_txt != title:
-                                materia = h_txt.strip()
-                    
+                    # Final cleanup: remove tech codes if any still exist
+                    if materia != "General":
+                        if " - " in materia: materia = materia.split(" - ", 1)[-1].strip()
+                        if "]" in materia: materia = materia.split("]", 1)[-1].strip()
+                        if materia == title: materia = "General"
+
                     is_quiz = "/mod/quiz/" in link
                     date_text = ""
                     if is_quiz:
@@ -270,12 +361,7 @@ async def run_scraper():
                     
                     is_delivered = any(x in date_text for x in ["Enviado", "Calificado", "Finalizado", "Hecho", "Terminado"])
                     
-                    # Description and Files (same logic as before but simplified for readability)
-                    description = ""
-                    desc_elem = await page.query_selector(".box.py-3.generalbox, .instructions, #intro")
-                    if desc_elem: description = await desc_elem.inner_text()
-                    
-                    # --- DATE PARSING (Restored robust logic) ---
+                    # Date parsing
                     fecha_entrega = None
                     try:
                         clean_date_str = date_text.replace('\t', ' ').replace('\n', ' ').replace(',', '').strip()
@@ -284,11 +370,14 @@ async def run_scraper():
                         if "Hoy" in clean_date_str: clean_date_str = clean_date_str.replace("Hoy", now.strftime("%d %B %Y"))
                         elif "Mañana" in clean_date_str: clean_date_str = clean_date_str.replace("Mañana", tomorrow.strftime("%d %B %Y"))
                         if "202" not in clean_date_str: clean_date_str += f" {now.year}"
-                        
                         parsed_date = dateparser.parse(clean_date_str, languages=['es'], settings={'PREFER_DATES_FROM': 'future'})
                         if parsed_date: fecha_entrega = parsed_date.isoformat()
                     except: pass
 
+                    description = ""
+                    desc_elem = await page.query_selector(".box.py-3.generalbox, .instructions, #intro")
+                    if desc_elem: description = await desc_elem.inner_text()
+                    
                     # Upsert
                     task_data = {
                         "id_moodle": moodle_id,
@@ -303,7 +392,7 @@ async def run_scraper():
                     
                     if supabase:
                         supabase.table("tareas").upsert(task_data, on_conflict="id_moodle").execute()
-                        print(f"  [DB] Synced: {title[:40]}")
+                        print(f"  [DB] Synced: {title[:40]} | Materia: {materia}")
                     
                     tasks_synced.append(task_data)
                 except Exception as e:
