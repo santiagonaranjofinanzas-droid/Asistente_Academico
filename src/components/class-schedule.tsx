@@ -22,7 +22,7 @@ const SCHEDULE: ScheduleItem[] = [
   { id: "3", name: "Finanzas Corporativas", time: "19:00", day: 2, duration: 2, link: "https://teams.microsoft.com/meet/2946832374372?p=c3WgUYqFcaqguCveKy", type: "teams", color: "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400", icon: Briefcase, passcode: "Passcode: dC9Lc2Gb" },
   { id: "4", name: "Economías Innovadoras", time: "19:00", day: 3, duration: 2, link: "https://teams.microsoft.com/meet/23496449269621?p=KyyMtCOKF6Nr6YcJio", type: "teams", color: "bg-pink-500/10 border-pink-500/20 text-pink-600 dark:text-pink-400", icon: GraduationCap, passcode: "Passcode: Eq32d7nB" },
   { id: "5", name: "Gestión y Emprendimiento", time: "17:00", day: 4, duration: 2, link: "https://cedia.zoom.us/j/87298006049", type: "zoom", color: "bg-orange-500/10 border-orange-500/20 text-orange-600 dark:text-orange-400", icon: Code },
-  { id: "6", name: "Gestión de la Calidad", time: "19:00", day: 4, duration: 2, link: "#", type: "none", color: "bg-amber-700/10 border-amber-700/20 text-amber-700 dark:text-amber-500", icon: ShieldCheck },
+  { id: "6", name: "Gestión de la Calidad", time: "19:00", day: 4, duration: 2, link: "https://us06web.zoom.us/j/89636651652?pwd=QsG66CxRrhcc4kH4W63yTyXb7FStua.1", type: "zoom", color: "bg-amber-700/10 border-amber-700/20 text-amber-700 dark:text-amber-500", icon: ShieldCheck },
   { id: "7", name: "Diseño y Evaluación de Proyecto", time: "17:00", day: 5, duration: 2, link: "https://teams.microsoft.com/meet/266096719618997?p=SGWR0i7wtwal1LCv7T", type: "teams", color: "bg-indigo-500/10 border-indigo-500/20 text-indigo-600 dark:text-indigo-400", icon: MapPin, passcode: "Passcode: xv9t2Xd9" },
 ];
 

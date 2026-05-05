@@ -20,7 +20,7 @@ SCHEDULE = {
     },
     3: {  # Jueves
         "17:00": {"name": "Gestión y Emprendimiento", "link": "https://cedia.zoom.us/j/87298006049"},
-        "19:00": {"name": "Gestión de la Calidad", "link": "Aún no disponible"}
+        "19:00": {"name": "Gestión de la Calidad", "link": "https://us06web.zoom.us/j/89636651652?pwd=QsG66CxRrhcc4kH4W63yTyXb7FStua.1"}
     },
     4: {  # Viernes
         "17:00": {"name": "Diseño y Evaluación de Proyecto", "link": "https://teams.microsoft.com/meet/266096719618997?p=SGWR0i7wtwal1LCv7T\nID: 266 096 719 618 997\nPasscode: xv9t2Xd9"}
